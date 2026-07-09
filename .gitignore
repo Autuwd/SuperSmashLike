@@ -1,0 +1,30 @@
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+[Uu]serSettings/
+[Ll]astScene*.txt
+
+# VS
+.vs/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userosscache
+*.userprefs
+
+# JetBrains
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+
+# Unity Generated
+Assets/AssetStoreTools*
