@@ -417,17 +417,35 @@
         {
             "name": "KeyboardP1",
             "bindingGroup": "KeyboardP1",
-            "devices": []
+            "devices": [
+                {
+                    "layout": "Keyboard",
+                    "variants": "",
+                    "usage": ""
+                }
+            ]
         },
         {
             "name": "KeyboardP2",
             "bindingGroup": "KeyboardP2",
-            "devices": []
+            "devices": [
+                {
+                    "layout": "Keyboard",
+                    "variants": "",
+                    "usage": ""
+                }
+            ]
         },
         {
             "name": "Gamepad",
             "bindingGroup": "Gamepad",
-            "devices": []
+            "devices": [
+                {
+                    "layout": "Gamepad",
+                    "variants": "",
+                    "usage": ""
+                }
+            ]
         }
     ]
 }

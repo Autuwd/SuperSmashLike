@@ -9,13 +9,16 @@ using SuperSmashLike.Core;
 //   2. 将输入转换为游戏操作，调用 FighterController 对应方法
 //   3. 根据上下文（地面/空中、是否推摇杆）决定使用哪个攻击
 // 架构位置：Input 层
-// 工作原理：
-//   使用 Unity Input System 的 "Send Messages" 模式
-//   → PlayerInput 组件收到输入后自动调用 OnMove/OnJump/OnAttack 等方法
-//   → 在 Update 中将这些输入转换为游戏行为
-// 多人支持：
-//   每个玩家角色身上挂一个 PlayerInput + InputManager
-//   PlayerInputManager 自动为新接入的设备分配角色
+//
+// 工作原理（重要变更记录 2026-08-11）：
+//   原方案依赖 PlayerInput 组件的 "Send Messages" 模式。
+//   实测发现：PlayerInput 通过 InputUser 关联 actions 资产时，
+//   会对整个资产施加 scheme 过滤(asset.bindingMask) + 设备需求过滤，
+//   在 pairedDevices=0（scheme 设备需求未满足）时，绑定解析全部失败
+//   （解析控件数=0，任何按键无信号）。
+//   修复：InputManager 运行时克隆一份独立的 actions 资产（JSON 克隆），
+//   完全绕开 InputUser 的污染，手动订阅全部 Action 回调。
+//   克隆资产解析控件数正常(=8)，输入验证通过。
 // ============================================================
 namespace SuperSmashLike.InputSystem
 {
@@ -24,10 +27,12 @@ namespace SuperSmashLike.InputSystem
         [Header("References")]
         public FighterController fighterController;  // 要控制的斗士
 
-        private PlayerInput playerInput;  // Unity Input System 组件
+        private PlayerInput playerInput;  // 仅用于获取 actions 资产引用（组件已被禁用）
+        private InputActionAsset runtimeActions;  // 运行时克隆的独立资产（InputUser 无法污染）
+        private InputActionMap gameplayMap;       // Gameplay 地图（启用中）
 
         // ==================== 输入状态（暂存） ====================
-        // 这些由 OnXxx 方法写入，在 Update 中消费
+        // 这些由 Action 回调写入，在 Update 中消费
         public Vector2 MoveInput { get; private set; }      // 移动方向（左摇杆/WASD）
         public bool JumpPressed { get; private set; }        // 跳跃（按下的瞬间）
         public bool AttackPressed { get; private set; }      // 攻击（按下的瞬间）
@@ -42,6 +47,118 @@ namespace SuperSmashLike.InputSystem
             playerInput = GetComponent<PlayerInput>();
             if (fighterController == null)
                 fighterController = GetComponent<FighterController>();
+
+            if (playerInput != null)
+            {
+                // 禁用 PlayerInput：其 InputUser 关联会污染整个资产导致绑定解析失败（根因）
+                playerInput.enabled = false;
+
+                // JSON 克隆独立资产：与 InputUser 完全隔离
+                if (playerInput.actions != null)
+                {
+                    runtimeActions = ScriptableObject.CreateInstance<InputActionAsset>();
+                    runtimeActions.LoadFromJson(playerInput.actions.ToJson());
+                }
+            }
+
+            Debug.Log($"[InputManager] 初始化 | PlayerInput: {(playerInput != null ? "已找到(已禁用)" : "缺失")} | " +
+                      $"克隆资产: {(runtimeActions != null ? "OK" : "失败!")} | " +
+                      $"FighterController: {(fighterController != null ? "已找到" : "缺失!")}", this);
+        }
+
+        private void OnEnable()
+        {
+            if (runtimeActions == null) return;
+
+            gameplayMap = runtimeActions.FindActionMap("Gameplay");
+            if (gameplayMap == null)
+            {
+                Debug.LogError("[InputManager] 找不到 Gameplay ActionMap！", this);
+                return;
+            }
+
+            // 手动订阅全部 Action 回调（Button 类型用 started 捕获按下瞬间）
+            gameplayMap.FindAction("Move").performed += OnMoveCtx;
+            gameplayMap.FindAction("Jump").started += OnJumpCtx;
+            gameplayMap.FindAction("Attack").started += OnAttackCtx;
+            gameplayMap.FindAction("Special").started += OnSpecialCtx;
+            gameplayMap.FindAction("Shield").started += OnShieldStartCtx;
+            gameplayMap.FindAction("Shield").canceled += OnShieldCancelCtx;
+            gameplayMap.FindAction("Grab").started += OnGrabCtx;
+            gameplayMap.FindAction("Taunt").started += OnTauntCtx;
+            gameplayMap.FindAction("Pause").started += OnPauseCtx;
+
+            gameplayMap.Enable();
+
+            var move = gameplayMap.FindAction("Move");
+            Debug.Log($"[InputManager] 输入就绪 | 移动控件数: {move.controls.Count}", this);
+        }
+
+        private void OnDisable()
+        {
+            if (gameplayMap == null) return;
+
+            gameplayMap.FindAction("Move").performed -= OnMoveCtx;
+            gameplayMap.FindAction("Jump").started -= OnJumpCtx;
+            gameplayMap.FindAction("Attack").started -= OnAttackCtx;
+            gameplayMap.FindAction("Special").started -= OnSpecialCtx;
+            gameplayMap.FindAction("Shield").started -= OnShieldStartCtx;
+            gameplayMap.FindAction("Shield").canceled -= OnShieldCancelCtx;
+            gameplayMap.FindAction("Grab").started -= OnGrabCtx;
+            gameplayMap.FindAction("Taunt").started -= OnTauntCtx;
+            gameplayMap.FindAction("Pause").started -= OnPauseCtx;
+
+            gameplayMap.Disable();
+        }
+
+        // ==================== Action 回调 ====================
+        private void OnMoveCtx(InputAction.CallbackContext ctx)
+        {
+            MoveInput = ctx.ReadValue<Vector2>();
+        }
+
+        private void OnJumpCtx(InputAction.CallbackContext ctx)
+        {
+            JumpPressed = true;
+        }
+
+        private void OnAttackCtx(InputAction.CallbackContext ctx)
+        {
+            AttackPressed = true;
+        }
+
+        private void OnSpecialCtx(InputAction.CallbackContext ctx)
+        {
+            SpecialPressed = true;
+        }
+
+        private void OnShieldStartCtx(InputAction.CallbackContext ctx)
+        {
+            ShieldHeld = true;
+        }
+
+        private void OnShieldCancelCtx(InputAction.CallbackContext ctx)
+        {
+            ShieldHeld = false;
+        }
+
+        private void OnGrabCtx(InputAction.CallbackContext ctx)
+        {
+            GrabPressed = true;
+        }
+
+        private void OnTauntCtx(InputAction.CallbackContext ctx)
+        {
+            TauntPressed = true;
+        }
+
+        // 暂停：切换暂停/恢复
+        private void OnPauseCtx(InputAction.CallbackContext ctx)
+        {
+            if (GameManager.Instance.CurrentGameState == GameState.Battle)
+                GameManager.Instance.PauseGame();
+            else if (GameManager.Instance.CurrentGameState == GameState.Paused)
+                GameManager.Instance.ResumeGame();
         }
 
         // 每帧将暂存的输入状态应用到 FighterController
@@ -111,62 +228,6 @@ namespace SuperSmashLike.InputSystem
                 return fighterController.fighterData.tiltSide;
 
             return fighterController.fighterData.jab1;
-        }
-
-        // ==================== Unity Input System 回调 ====================
-        // 这些方法由 PlayerInput 组件通过 "Send Messages" 模式自动调用
-        // 方法名必须与 Input Action Asset 中定义的 Action 名称一致
-
-        public void OnMove(InputValue value)
-        {
-            MoveInput = value.Get<Vector2>();
-        }
-
-        public void OnJump(InputValue value)
-        {
-            if (value.isPressed)
-                JumpPressed = true;
-        }
-
-        public void OnAttack(InputValue value)
-        {
-            if (value.isPressed)
-                AttackPressed = true;
-        }
-
-        public void OnSpecial(InputValue value)
-        {
-            if (value.isPressed)
-                SpecialPressed = true;
-        }
-
-        public void OnShield(InputValue value)
-        {
-            ShieldHeld = value.isPressed;
-        }
-
-        public void OnGrab(InputValue value)
-        {
-            if (value.isPressed)
-                GrabPressed = true;
-        }
-
-        public void OnTaunt(InputValue value)
-        {
-            if (value.isPressed)
-                TauntPressed = true;
-        }
-
-        // 暂停：切换暂停/恢复
-        public void OnPause(InputValue value)
-        {
-            if (value.isPressed)
-            {
-                if (GameManager.Instance.CurrentGameState == GameState.Battle)
-                    GameManager.Instance.PauseGame();
-                else if (GameManager.Instance.CurrentGameState == GameState.Paused)
-                    GameManager.Instance.ResumeGame();
-            }
         }
     }
 }

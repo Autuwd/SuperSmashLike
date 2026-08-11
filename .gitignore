@@ -28,3 +28,6 @@
 
 # Unity Generated
 Assets/AssetStoreTools*
+
+# OpenCode 工具目录
+.omo/

@@ -226,7 +226,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 4523789521531942654, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_DefaultActionMap
-      value: 736e8636-e0b5-429d-bc74-4af069a293dc
+      value: Gameplay
       objectReference: {fileID: 0}
     - target: {fileID: 4523789521531942654, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_DefaultControlScheme
@@ -560,7 +560,7 @@ MonoBehaviour:
   - {fileID: 2135237624}
   - {fileID: 2135237623}
   countdownTime: 3
-  gameOverDelay: 3
+  gameOverDelay: 90
 --- !u!4 &1010268792
 Transform:
   m_ObjectHideFlags: 0
