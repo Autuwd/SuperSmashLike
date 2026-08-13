@@ -54,6 +54,17 @@ namespace SuperSmashLike.Combat
                 hitCollider.enabled = false;
         }
 
+        // 由攻击动画末尾的 Animation Event 调用（Hitbox 在 Visual 上，事件能调到）
+        public void AttackFinished()
+        {
+            if (owner != null && owner.isAttacking &&
+                owner.StateMachine.CurrentState == FighterState.Attack)
+            {
+                owner.isAttacking = false;
+                owner.StateMachine.TransitionTo(FighterState.Idle);
+            }
+        }
+
         // 命中检测：当 Hitbox 碰撞体与 Hurtbox 碰撞体接触时触发
         private void OnTriggerEnter2D(Collider2D other)
         {
@@ -65,6 +76,12 @@ namespace SuperSmashLike.Combat
             {
                 // 对目标斗士应用伤害
                 hurtbox.owner.ApplyDamage(attackData, owner);
+                // 命中特效（在 AttackData 资产里配）
+                if (attackData.hitEffectPrefab != null)
+                {
+                    GameObject fx = Instantiate(attackData.hitEffectPrefab, other.transform.position, Quaternion.identity);
+                    Destroy(fx, 0.1f);   // 1.5 秒后自动清理
+                }
                 OnHit?.Invoke(hurtbox.owner);
 
                 // Hitstop：时间暂停一小段时间，增强打击感

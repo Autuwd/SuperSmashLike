@@ -91,7 +91,11 @@ namespace SuperSmashLike.Core
             if (rb == null) rb = GetComponent<Rigidbody2D>();
             if (animator == null) animator = GetComponentInChildren<Animator>();
             if (hurtbox == null) hurtbox = GetComponentInChildren<Hurtbox>();
-            if (hurtbox != null) hurtbox.owner = this;  // hurtbox 需要知道属于哪个角色
+            // hurtbox 需要知道属于哪个角色
+            if (hurtbox != null) hurtbox.owner = this;
+            // 修复：给所有 Hitbox 指定所有者，防止自伤
+            var hitboxes = GetComponentsInChildren<Hitbox>(true);
+            foreach (var hb in hitboxes) hb.owner = this;
 
             // 转发状态机事件到外部
             StateMachine.OnStateChanged += (prev, next) => OnStateChanged?.Invoke(prev, next);
@@ -220,17 +224,18 @@ namespace SuperSmashLike.Core
         // ==================== 计时器系统 ====================
         private void UpdateTimers()
         {
-            // 攻击计时器：攻击持续时间结束后回到待机
-            if (isAttacking)
-            {
-                attackTimer -= Time.deltaTime;
-                if (attackTimer <= 0f)
-                {
-                    isAttacking = false;
-                    if (StateMachine.CurrentState == FighterState.Attack)
-                        StateMachine.TransitionTo(FighterState.Idle);
-                }
-            }
+            //事件代替
+            //// 攻击计时器：攻击持续时间结束后回到待机
+            //if (isAttacking)
+            //{
+            //    attackTimer -= Time.deltaTime;
+            //    if (attackTimer <= 0f)
+            //    {
+            //        isAttacking = false;
+            //        if (StateMachine.CurrentState == FighterState.Attack)
+            //            StateMachine.TransitionTo(FighterState.Idle);
+            //    }
+            //}
 
             // 重生无敌计时器：一段时间后解除无敌
             if (respawnTimer > 0f)
@@ -282,9 +287,19 @@ namespace SuperSmashLike.Core
         // ==================== 移动系统 ====================
         private void UpdateMovement()
         {
-            // 非可操作状态或击飞中 → 不能移动
-            if (!StateMachine.CanAct() || isInKnockback)
+            // 击飞中 → 不能移动（击飞速度由 FixedUpdate 单独控制）
+            if (isInKnockback)
                 return;
+
+            // 攻击/受击/眩晕等非可操作状态 → 不能移动
+            // 地面：水平速度清零，防止"攻击中按住方向键滑动"
+            // 空中：保留惯性（空中攻击的动量手感，大乱斗风格）
+            if (!StateMachine.CanAct())
+            {
+                if (IsGrounded)
+                    velocity.x = 0f;
+                return;
+            }
 
             // 根据地面/空中选择不同的速度
             float speed = IsGrounded
@@ -371,6 +386,10 @@ namespace SuperSmashLike.Core
         {
             if (!StateMachine.CanAct() || isAttacking || isInKnockback)
                 return;
+
+            //把本次攻击数据同步给所有 Hitbox（AttackData 是内嵌类，不能拖拽，只能运行时赋值）
+            foreach (var hb in GetComponentsInChildren<Hitbox>(true))
+                hb.attackData = attackData;
 
             isAttacking = true;
             // 攻击总时长 = 前摇 + 判定帧 + 后摇
