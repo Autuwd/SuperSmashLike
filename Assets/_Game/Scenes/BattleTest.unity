@@ -216,7 +216,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
---- !u!1001 &490144680
+--- !u!1001 &495285241
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -224,21 +224,13 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 4523789521531942654, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
-      propertyPath: m_DefaultActionMap
-      value: Gameplay
-      objectReference: {fileID: 0}
-    - target: {fileID: 4523789521531942654, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
-      propertyPath: m_DefaultControlScheme
-      value: KeyboardP1
-      objectReference: {fileID: 0}
     - target: {fileID: 6592082993512997954, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -4
+      value: -6
       objectReference: {fileID: 0}
     - target: {fileID: 6592082993512997954, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 3
+      value: 2.257
       objectReference: {fileID: 0}
     - target: {fileID: 6592082993512997954, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_LocalPosition.z
@@ -662,5 +654,5 @@ SceneRoots:
   - {fileID: 527332636}
   - {fileID: 1010268792}
   - {fileID: 2135237622}
-  - {fileID: 490144680}
   - {fileID: 821706542}
+  - {fileID: 495285241}

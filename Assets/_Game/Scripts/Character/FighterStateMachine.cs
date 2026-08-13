@@ -92,8 +92,11 @@ namespace SuperSmashLike.Core
         public void TransitionTo(FighterState newState)
         {
             if (!CanTransitionTo(newState))
+            {
+                //Debug.Log($"🚫 切换被拒: {CurrentState} → {newState}");
                 return;
-
+            }
+            //Debug.Log($"✅ 切换: {CurrentState} → {newState}");
             PreviousState = CurrentState;
             CurrentState = newState;
             OnStateChanged?.Invoke(PreviousState, newState);

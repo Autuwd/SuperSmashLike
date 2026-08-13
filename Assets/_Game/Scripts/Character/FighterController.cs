@@ -20,6 +20,7 @@ namespace SuperSmashLike.Core
     {
         // ==================== Inspector 配置区 ====================
         [Header("Configuration")]
+        public bool isFacingRight = true; //面朝向翻转
         public FighterData fighterData;  // 角色数据资产（ScriptableObject）
         public int playerID;             // 玩家ID（0=P1, 1=P2, …）
 
@@ -28,6 +29,7 @@ namespace SuperSmashLike.Core
         public Rigidbody2D rb;           // 刚体 → 物理运动
         public Collider2D mainCollider;  // 主碰撞体
         public Hurtbox hurtbox;          // 受击判定框（子物体）
+        public Transform visual;         // 模型父级（Visual），用于镜像翻转
 
         [Header("Ground Detection")]
         public Transform groundCheck;        // 脚底检测点（空子物体）
@@ -41,6 +43,7 @@ namespace SuperSmashLike.Core
         public float CurrentKnockbackSpeed { get; set; }   // 当前击飞速度
         public Vector2 velocity;                           // 速度向量（x=水平, y=垂直）
         public Vector2 MoveInput { get; set; }             // 输入方向（由 InputManager 写入）
+        private FighterState lastAnimState = (FighterState)(-1);   // 上次同步的状态
 
         [Header("Jump")]
         public int remainingJumps;  // 剩余跳跃次数（大乱斗通常可跳2次）
@@ -54,6 +57,19 @@ namespace SuperSmashLike.Core
         [Header("Knockback")]
         public Vector2 knockbackVelocity;  // 击飞速度向量（由 DamageSystem 计算）
         public bool isInKnockback;         // 是否处于击飞飞行中
+
+        [Header("Feel")]
+        public float gravityScale = 2.2f;   // 角色专属重力倍率（默认×1=标准重力）
+        public float fastFallMultiplier = 1.6f;   // 快速下落速度倍率
+        public float jumpBufferTime = 0.1f;       // 跳跃缓冲时间（秒）
+        public float coyoteTime = 0.1f;           // 土狼时间（秒）
+        private float jumpBufferTimer = 0f;
+        private float coyoteTimer = 0f;
+        public float doubleTapWindow = 0.25f;   // 双击判定窗口（秒）
+        private bool isRunning = false;          // 是否处于跑步状态
+        private float lastTapTime = -1f;         // 上次按下方向的时间
+        private int lastTapDirection = 0;        // 上次按下的方向（-1/1）
+        private int lastTapDir = 0;              // 当前是否在按住方向（0=松开）
 
         [Header("Shield")]
         public float currentShieldHP;  // 护盾当前耐久
@@ -96,6 +112,10 @@ namespace SuperSmashLike.Core
             // 用地面的一个小圆来检测是否在地面上
             // Physics2D.OverlapCircle 检测 groundCheck 位置是否有 groundLayer 的碰撞体
             IsGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+            // 土狼时间：着地刷新，离地后倒计时（0.1s 内仍可跳）
+            coyoteTimer = IsGrounded ? coyoteTime : coyoteTimer - Time.deltaTime;
+            // 跳跃缓冲倒计时
+            if (jumpBufferTimer > 0f) jumpBufferTimer -= Time.deltaTime;
 
             // 死亡角色不更新
             if (StateMachine.CurrentState == FighterState.Dead)
@@ -103,8 +123,71 @@ namespace SuperSmashLike.Core
 
             UpdateTimers();      // 攻击计时器、无敌计时器、护盾消耗/恢复
             UpdateGravity();     // 重力加速度
+            // 快速下落：下落中按住 ↓ 加速（更快落地）
+            bool fastFallHeld = MoveInput.y < -0.5f;
+            //Debug.Log($"DEBUG: state={StateMachine.CurrentState} moveY={MoveInput.y:F2} velY={velocity.y:F2} grounded={IsGrounded}");
+            if (StateMachine.CurrentState == FighterState.Fall && fastFallHeld && velocity.y < -4f)
+            {
+                velocity.y = Mathf.Min(velocity.y, -fighterData.fastFallSpeed * fastFallMultiplier);
+            }
+            // ===== 双击方向键检测 → 进入跑步 =====
+            int currentDir = MoveInput.x > 0.1f ? 1 : (MoveInput.x < -0.1f ? -1 : 0);
+
+            // 刚按下方向（从"松开"到"按下"的边沿）→ 检测双击
+            if (currentDir != 0 && lastTapDir == 0)
+            {
+                if (currentDir == lastTapDirection && Time.time - lastTapTime < doubleTapWindow)
+                    isRunning = true;   // 同方向快速按两次 → 跑！
+                lastTapTime = Time.time;
+                lastTapDirection = currentDir;
+            }
+
+            // 反方向 → 退出跑步
+            if (currentDir != 0 && lastTapDir != 0 && currentDir != lastTapDirection)
+                isRunning = false;
+
+            // 松开方向 → 退出跑步 + 重置双击记忆
+            if (currentDir == 0)
+            {
+                isRunning = false;
+                lastTapDir = 0;
+            }
+            else
+            {
+                lastTapDir = currentDir;
+            }
             UpdateMovement();    // 水平移动 + 地面/空中状态切换
             UpdateAnimation();   // 同步参数到 Animator
+
+            // 朝向逻辑：自由状态下，移动时按移动方向转向；静止时面向对手
+            bool canTurn = StateMachine.CurrentState == FighterState.Idle
+                || StateMachine.CurrentState == FighterState.Run
+                || StateMachine.CurrentState == FighterState.FreeMove;
+            if (canTurn)
+            {
+                // 1. 移动输入优先 → 按移动方向转向
+                // 移动转向（原第 169-177 行整段替换）：
+                if (Mathf.Abs(MoveInput.x) > 0.1f)
+                {
+                    SetFacing(MoveInput.x > 0f);   // ← 直接调，SetFacing 内部自己判断
+                }
+                // 2. 无移动输入 → 自动面向对手（对战时保持"锁定对手"）
+                else
+                {
+                    Transform target = null;
+                    var players = GameManager.Instance.ActivePlayers;
+                    if (players != null)
+                    {
+                        foreach (var p in players)
+                            if (p != this) { target = p.transform; break; }
+                    }
+                    // 面向对手（原第 188-196 行，target 判空之后）：
+                    if (target != null)
+                    {
+                        SetFacing(target.position.x > transform.position.x);
+                    }
+                }
+            }
         }
 
         // FixedUpdate 处理物理（刚体速度赋值）
@@ -175,7 +258,7 @@ namespace SuperSmashLike.Core
         {
             // 空中且不在击飞中 → 增加向下的重力速度
             if (!IsGrounded && !isInKnockback)
-                velocity.y += Physics2D.gravity.y * Time.deltaTime;
+                velocity.y += Physics2D.gravity.y * gravityScale * Time.deltaTime;
             // 落地 → 重置垂直速度 + 恢复跳跃次数
             else if (IsGrounded && velocity.y <= 0f)
             {
@@ -187,7 +270,13 @@ namespace SuperSmashLike.Core
                 }
                 velocity.y = 0f;
                 remainingJumps = fighterData.jumpCount;  // 重置跳跃次数
+                // 落地时有缓冲的跳跃意图 → 自动起跳
+                if (jumpBufferTimer > 0f)
+                    TryPerformJump();
             }
+            // 下落速度上限：fallSpeed 越大落得越快（上限越松）
+            if (velocity.y < -fighterData.fallSpeed)
+                velocity.y = -fighterData.fallSpeed;
         }
 
         // ==================== 移动系统 ====================
@@ -198,7 +287,9 @@ namespace SuperSmashLike.Core
                 return;
 
             // 根据地面/空中选择不同的速度
-            float speed = IsGrounded ? fighterData.walkSpeed : fighterData.airSpeed;
+            float speed = IsGrounded
+                ? (isRunning ? fighterData.runSpeed : fighterData.walkSpeed)
+                : fighterData.airSpeed;
             velocity.x = MoveInput.x * speed;
 
             // 根据是否在地面和垂直速度切换状态
@@ -220,15 +311,32 @@ namespace SuperSmashLike.Core
         private void UpdateAnimation()
         {
             if (animator == null) return;
-
+            // 动画播放速率 = 移动速度 / 最大速度 → 走路慢放、跑动正常
+            animator.speed = Mathf.Lerp(0.4f, 0.8f, Mathf.Abs(velocity.x) / fighterData.runSpeed);
+            // ★ State 参数只在状态变化时设置（避免每帧 Set 触发 AnyState 重入循环）
+            if (StateMachine.CurrentState != lastAnimState)
+            {
+                animator.SetInteger("State", (int)StateMachine.CurrentState);
+                lastAnimState = StateMachine.CurrentState;
+            }
             animator.SetFloat("Speed", Mathf.Abs(velocity.x));      // 速度→移动动画blend
             animator.SetBool("IsGrounded", IsGrounded);             // 是否在地面
             animator.SetFloat("VerticalSpeed", velocity.y);         // 垂直速度→跳跃/下落动画
             animator.SetFloat("Damage", CurrentDamage);             // 伤害值→受击表情/动作变化
-            animator.SetInteger("State", (int)StateMachine.CurrentState);  // 当前状态→状态机转换
         }
 
         // ==================== 公开方法 ====================
+
+        // 朝向翻转：镜像 Visual 的 X 缩放（3D 模型旋转会背面朝镜头，必须用镜像）
+        private void SetFacing(bool faceRight)
+        {
+            if (faceRight == isFacingRight) return;
+            isFacingRight = faceRight;
+            if (visual == null) return;
+            Vector3 s = visual.localScale;
+            s.x = Mathf.Abs(s.x) * (faceRight ? 1f : -1f);   // 保留原有缩放大小，只翻符号
+            visual.localScale = s;
+        }
 
         // 【跳跃】由 InputManager 调用
         // 大乱斗风格：可多段跳（二段跳）；空中和地面都可跳
@@ -237,13 +345,23 @@ namespace SuperSmashLike.Core
             if (!StateMachine.CanAct() || isInKnockback)
                 return;
 
-            if (remainingJumps > 0)
+            jumpBufferTimer = jumpBufferTime;  // 记录本次按键意图（即使暂时不能跳）
+            TryPerformJump();
+        }
+
+        // 实际执行跳跃（按键与落地缓冲共用）
+        private void TryPerformJump()
+        {
+            bool isFirstJump = remainingJumps == fighterData.jumpCount;
+            // 一段跳需要着地或土狼时间内；二段跳空中可跳
+            bool groundOk = isFirstJump ? (IsGrounded || coyoteTimer > 0f) : true;
+            if (groundOk && remainingJumps > 0)
             {
-                // 一段跳用 full jump force，二段跳略弱（85%）
-                velocity.y = fighterData.jumpForce * (remainingJumps == fighterData.jumpCount ? 1f : 0.85f);
+                velocity.y = fighterData.jumpForce * (isFirstJump ? 1f : 0.85f);
                 remainingJumps--;
                 StateMachine.TransitionTo(FighterState.Jump);
                 isJumping = true;
+                jumpBufferTimer = 0f;   // 消耗缓冲
             }
         }
 
@@ -315,8 +433,17 @@ namespace SuperSmashLike.Core
                 || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
-            isShielding = active;
-            StateMachine.TransitionTo(active ? FighterState.Shield : FighterState.Idle);
+            // 只有"盾状态真实变化"才切换——不干扰其他状态！
+            if (active && StateMachine.CurrentState != FighterState.Shield)
+            {
+                isShielding = true;
+                StateMachine.TransitionTo(FighterState.Shield);
+            }
+            else if (!active && StateMachine.CurrentState == FighterState.Shield)
+            {
+                isShielding = false;
+                StateMachine.TransitionTo(FighterState.Idle);
+            }
         }
 
         // 【破盾】护盾耐久归零时触发

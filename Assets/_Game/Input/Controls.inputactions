@@ -92,50 +92,6 @@
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "",
-                    "id": "58c529af-cc30-4e86-8828-017baeaba3ba",
-                    "path": "<Keyboard>/upArrow",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";KeyboardP2",
-                    "action": "Move",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "6866866c-d185-4fe3-8bc3-3f755efb6ceb",
-                    "path": "<Keyboard>/leftArrow",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";KeyboardP2",
-                    "action": "Move",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "45aa8b65-e4bc-4835-a1a9-10917cfd69ee",
-                    "path": "<Keyboard>/downArrow",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";KeyboardP2",
-                    "action": "Move",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "0dc535b3-fb9f-4ec0-b6a8-da933a1715d5",
-                    "path": "<Keyboard>/rightArrow",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";KeyboardP2",
-                    "action": "Move",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
                     "name": "2D Vector",
                     "id": "e16b1669-ca21-4d9a-a3e3-d8decb63f72b",
                     "path": "2DVector",
@@ -186,6 +142,61 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "2D Vector",
+                    "id": "3253c3d4-3814-4ff0-953f-84a72cf811f3",
+                    "path": "2DVector",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "up",
+                    "id": "78484f27-ff0c-4f00-9202-78bd1ed1f6d5",
+                    "path": "<Keyboard>/upArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";KeyboardP2",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "down",
+                    "id": "c5bc0c1f-6636-42e5-9740-8b3f5841fbdd",
+                    "path": "<Keyboard>/downArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";KeyboardP2",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "left",
+                    "id": "56c16a4e-d650-4a69-9fd7-305898bfb1fd",
+                    "path": "<Keyboard>/leftArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";KeyboardP2",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "right",
+                    "id": "00f73ab9-de95-44d8-a7f7-32a1133237f9",
+                    "path": "<Keyboard>/rightArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";KeyboardP2",
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": true
@@ -419,9 +430,9 @@
             "bindingGroup": "KeyboardP1",
             "devices": [
                 {
-                    "layout": "Keyboard",
-                    "variants": "",
-                    "usage": ""
+                    "devicePath": "",
+                    "isOptional": false,
+                    "isOR": false
                 }
             ]
         },
@@ -430,9 +441,9 @@
             "bindingGroup": "KeyboardP2",
             "devices": [
                 {
-                    "layout": "Keyboard",
-                    "variants": "",
-                    "usage": ""
+                    "devicePath": "",
+                    "isOptional": false,
+                    "isOR": false
                 }
             ]
         },
@@ -441,9 +452,9 @@
             "bindingGroup": "Gamepad",
             "devices": [
                 {
-                    "layout": "Gamepad",
-                    "variants": "",
-                    "usage": ""
+                    "devicePath": "",
+                    "isOptional": false,
+                    "isOR": false
                 }
             ]
         }

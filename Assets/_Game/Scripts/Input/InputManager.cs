@@ -79,6 +79,7 @@ namespace SuperSmashLike.InputSystem
 
             // 手动订阅全部 Action 回调（Button 类型用 started 捕获按下瞬间）
             gameplayMap.FindAction("Move").performed += OnMoveCtx;
+            gameplayMap.FindAction("Move").canceled += OnMoveCtx;
             gameplayMap.FindAction("Jump").started += OnJumpCtx;
             gameplayMap.FindAction("Attack").started += OnAttackCtx;
             gameplayMap.FindAction("Special").started += OnSpecialCtx;
@@ -99,6 +100,7 @@ namespace SuperSmashLike.InputSystem
             if (gameplayMap == null) return;
 
             gameplayMap.FindAction("Move").performed -= OnMoveCtx;
+            gameplayMap.FindAction("Move").canceled -= OnMoveCtx;
             gameplayMap.FindAction("Jump").started -= OnJumpCtx;
             gameplayMap.FindAction("Attack").started -= OnAttackCtx;
             gameplayMap.FindAction("Special").started -= OnSpecialCtx;
