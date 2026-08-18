@@ -112,6 +112,10 @@ namespace SuperSmashLike.Core
         public GameObject hitEffectPrefab;     // 命中特效预制体
         public AudioClip hitSound;             // 命中音效
 
+        [Header("Hitbox")]
+        public Vector2 hitboxOffset;   // 判定框偏移（x 按朝向翻转）
+        public Vector2 hitboxSize;     // 判定框大小
+
         // 总持续时间（前摇+判定+后摇）
         public float TotalDuration => startupTime + activeTime + recoveryTime;
     }

@@ -1,5 +1,6 @@
-using UnityEngine;
 using SuperSmashLike.Combat;
+using SuperSmashLike.Stage;
+using UnityEngine;
 
 // ============================================================
 // FighterController — 斗士角色主控制器（整个项目的核心类）
@@ -51,8 +52,16 @@ namespace SuperSmashLike.Core
         public bool jumpHeld;       // 跳跃键是否按住
 
         [Header("Attack")]
+        public AttackData attackData;   // 当前攻击数据（起手/连招推进/缓冲消费共用）
         public bool isAttacking;    // 是否正在攻击动画中
         public float attackTimer;   // 攻击剩余持续时间
+        public float attackFallbackTimer;  // 攻击兜底计时（独立于 attackTimer，防事件链路断卡死）
+
+        [Header("Combo")]
+        public bool bufferedAttack;      // 攻击输入缓冲
+        public int comboStep;            // 当前连招段（0=Jab1, 1=Jab2, 2=Jab3）
+        public float comboWindowStart = 0.4f;   // 连招窗口起点（normalizedTime）
+        public float comboWindowEnd = 0.85f;    // 连招窗口终点
 
         [Header("Knockback")]
         public Vector2 knockbackVelocity;  // 击飞速度向量（由 DamageSystem 计算）
@@ -166,7 +175,9 @@ namespace SuperSmashLike.Core
             // 朝向逻辑：自由状态下，移动时按移动方向转向；静止时面向对手
             bool canTurn = StateMachine.CurrentState == FighterState.Idle
                 || StateMachine.CurrentState == FighterState.Run
-                || StateMachine.CurrentState == FighterState.FreeMove;
+                || StateMachine.CurrentState == FighterState.FreeMove
+                || StateMachine.CurrentState == FighterState.Jump
+                || StateMachine.CurrentState == FighterState.Fall;
             if (canTurn)
             {
                 // 1. 移动输入优先 → 按移动方向转向
@@ -207,6 +218,7 @@ namespace SuperSmashLike.Core
                 rb.velocity = knockbackVelocity;
                 // 水平衰减模拟空气阻力（每帧速度 * 0.98）
                 knockbackVelocity.x *= 0.98f;
+                knockbackVelocity.y *= 0.98f;
                 // 速度足够小时结束击飞状态
                 if (knockbackVelocity.magnitude < 0.5f)
                 {
@@ -224,18 +236,37 @@ namespace SuperSmashLike.Core
         // ==================== 计时器系统 ====================
         private void UpdateTimers()
         {
-            //事件代替
-            //// 攻击计时器：攻击持续时间结束后回到待机
-            //if (isAttacking)
-            //{
-            //    attackTimer -= Time.deltaTime;
-            //    if (attackTimer <= 0f)
-            //    {
-            //        isAttacking = false;
-            //        if (StateMachine.CurrentState == FighterState.Attack)
-            //            StateMachine.TransitionTo(FighterState.Idle);
-            //    }
-            //}
+            // 攻击兜底计时器（08-17 新增）：
+            // 正常攻击结束靠动画事件 AttackFinished（动画播到 0.77s 触发 → HitboxEventRelay → Hitbox → isAttacking=false）。
+            // 若事件链路断（状态机重组后转换/Motion 未配好、动画被中断、relay target 为空）
+            // → isAttacking 永远 true → 状态机卡死在 Attack（CanAct()==false 不能移动）。
+            // 兜底：attackFallbackTimer 超时（1.2s，覆盖所有攻击动画时长）强制结束攻击。
+            // 事件正常时 AttackFinished 早已置 false，此计时器不触发，双保险。
+            if (isAttacking)
+            {
+                attackFallbackTimer -= Time.deltaTime;
+                if (attackFallbackTimer <= 0f)
+                {
+                    comboStep = 0;
+                    isAttacking = false;
+                    if (StateMachine.CurrentState == FighterState.Attack)
+                        StateMachine.TransitionTo(FighterState.Idle);
+                }
+            }
+
+            if (isAttacking && bufferedAttack && comboStep < 2 && IsInComboWindow())
+            {
+                bufferedAttack = false;
+                comboStep++;
+                attackData = GetComboAttack(comboStep);
+                foreach (var hb in GetComponentsInChildren<Hitbox>(true))
+                    hb.attackData = attackData;
+                attackTimer = attackData.startupTime + attackData.activeTime + attackData.recoveryTime;
+                attackFallbackTimer = 1.2f;
+                StateMachine.TransitionTo(FighterState.Attack);
+                Debug.Log($"Jab{comboStep + 1} 伤害={attackData.damage}");
+            }
+
 
             // 重生无敌计时器：一段时间后解除无敌
             if (respawnTimer > 0f)
@@ -327,7 +358,14 @@ namespace SuperSmashLike.Core
         {
             if (animator == null) return;
             // 动画播放速率 = 移动速度 / 最大速度 → 走路慢放、跑动正常
-            animator.speed = Mathf.Lerp(0.4f, 0.8f, Mathf.Abs(velocity.x) / fighterData.runSpeed);
+            // ⚠️ 修复(08-17)：攻击/举盾时锁定 1.0 倍速！
+            // animator.speed 是全局缩放（影响所有层），空中攻击时若水平速度低
+            // 动画被压到 0.4 倍速 → LightLeaping01 的"跳起翻转+劈砍"被慢放成
+            // "奔跑翻转再攻击"，过程极长且与姿态混合观感异常。
+            if (isAttacking || isShielding)
+                animator.speed = 1f;
+            else
+                animator.speed = Mathf.Lerp(0.4f, 0.8f, Mathf.Abs(velocity.x) / fighterData.runSpeed);
             // ★ State 参数只在状态变化时设置（避免每帧 Set 触发 AnyState 重入循环）
             if (StateMachine.CurrentState != lastAnimState)
             {
@@ -336,8 +374,14 @@ namespace SuperSmashLike.Core
             }
             animator.SetFloat("Speed", Mathf.Abs(velocity.x));      // 速度→移动动画blend
             animator.SetBool("IsGrounded", IsGrounded);             // 是否在地面
+            animator.SetFloat("AirFactor", IsGrounded ? 0f : 1f);   // 0=地面攻击，1=空中攻击
             animator.SetFloat("VerticalSpeed", velocity.y);         // 垂直速度→跳跃/下落动画
             animator.SetFloat("Damage", CurrentDamage);             // 伤害值→受击表情/动作变化
+
+            // Action Layer（索引 1）权重：攻击/举盾时抬起，结束归零
+            float targetWeight = (isAttacking || isShielding) ? 1f : 0f;
+            float cur = animator.GetLayerWeight(1);
+            animator.SetLayerWeight(1, Mathf.Lerp(cur, targetWeight, 10f * Time.deltaTime));
         }
 
         // ==================== 公开方法 ====================
@@ -380,21 +424,78 @@ namespace SuperSmashLike.Core
             }
         }
 
+        // 落穿：找到脚下最近的 Platform 并让它翻转单向
+        public void DropThroughPlatform()
+        {
+            Collider2D[] hits = Physics2D.OverlapCircleAll(
+                groundCheck.position, groundCheckRadius + 0.05f, groundLayer);
+            foreach (var c in hits)
+            {
+                var plat = c.GetComponentInParent<Platform>();
+                if (plat != null) { plat.DropThrough(); break; }
+            }
+        }
+
         // 【攻击】由 InputManager 调用
         // 传入 AttackData 决定用哪个攻击动作
-        public void TryAttack(AttackData attackData)
+        public void TryAttack(AttackData data)
         {
-            if (!StateMachine.CanAct() || isAttacking || isInKnockback)
+            if (isInKnockback || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
-            //把本次攻击数据同步给所有 Hitbox（AttackData 是内嵌类，不能拖拽，只能运行时赋值）
+            // ===== 连招：正在攻击中 → 判断能否推进到下一段 =====
+            if (isAttacking)
+            {
+                if (comboStep < 2)
+                {
+                    if (IsInComboWindow())
+                    {
+                        bufferedAttack = false;
+                        comboStep++;
+                        attackData = GetComboAttack(comboStep);
+                        foreach (var hb in GetComponentsInChildren<Hitbox>(true))
+                            hb.attackData = attackData;
+                        attackTimer = attackData.startupTime + attackData.activeTime + attackData.recoveryTime;
+                        attackFallbackTimer = 1.2f;
+                        StateMachine.TransitionTo(FighterState.Attack);
+                        Debug.Log($"Jab{comboStep + 1} 伤害={attackData.damage}");
+                    }
+                    else
+                    {
+                        bufferedAttack = true;   // 按太早 → 缓存，等窗口期自动打
+                    }
+                }
+                return;
+            }
+
+            // ===== 正常起手 =====
+            bufferedAttack = false;
+            comboStep = 0;
+            attackData = data;
             foreach (var hb in GetComponentsInChildren<Hitbox>(true))
                 hb.attackData = attackData;
-
             isAttacking = true;
-            // 攻击总时长 = 前摇 + 判定帧 + 后摇
             attackTimer = attackData.startupTime + attackData.activeTime + attackData.recoveryTime;
+            attackFallbackTimer = 1.2f;   // 兜底：动画事件断时 1.2s 后强制结束攻击
             StateMachine.TransitionTo(FighterState.Attack);
+        }
+
+        private bool IsInComboWindow()
+        {
+            // normalizedTime 对动画帧精确，且自动兼容 Animator 倍速
+            AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(1);
+            float t = info.normalizedTime % 1f;
+            return t >= comboWindowStart && t <= comboWindowEnd;
+        }
+
+        private AttackData GetComboAttack(int step)
+        {
+            return step switch
+            {
+                1 => fighterData.jab2,
+                2 => fighterData.jab3,
+                _ => fighterData.jab1,
+            };
         }
 
         // 【受击】由 Hitbox.OnTriggerEnter2D 调用

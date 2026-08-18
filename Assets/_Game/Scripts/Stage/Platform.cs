@@ -22,13 +22,25 @@ namespace SuperSmashLike.Stage
         public float disableCollisionTime = 0.5f;  // 落穿后碰撞禁用时间
 
         private Collider2D platformCollider;  // 平台碰撞体
+        private PlatformEffector2D effector;
         private float dropTimer;              // 落穿计时器
 
         private void Awake()
         {
             platformCollider = GetComponent<Collider2D>();
+            effector = GetComponent<PlatformEffector2D>();
+            if (effector == null)
+                effector = gameObject.AddComponent<PlatformEffector2D>();
+
             if (isPassThrough)
-                platformCollider.isTrigger = true;  // Trigger → 角色可穿过
+            {
+                // 单向平台：只从上方碰撞
+                platformCollider.isTrigger = false;      // 不能是 Trigger
+                platformCollider.usedByEffector = true;  // ← 关键：碰撞体交给 effector 控制
+                effector.useOneWay = true;
+                //effector.useOneWayGrouping = true;     // 不需要分组，单平台各自判断
+                effector.surfaceArc = 180f;
+            }
         }
 
         private void Update()
@@ -37,25 +49,16 @@ namespace SuperSmashLike.Stage
             {
                 dropTimer -= Time.deltaTime;
                 if (dropTimer <= 0f)
-                    platformCollider.isTrigger = true;  // 恢复可站立
+                    platformCollider.enabled = true;   // 恢复碰撞 → 又能站立
             }
         }
 
-        // 落穿：由 InputManager 检测到"下+跳跃"时调用
+        // 落穿：翻转 effector 角度 180° → 反向单向 → 角色从上方也能穿过
         public void DropThrough()
         {
-            if (!isPassThrough) return;
-            platformCollider.isTrigger = false;   // 临时禁用 Trigger → 角色碰到平台会卡住
-            dropTimer = disableCollisionTime;     // 启动计时器
-        }
-
-        // 当角色穿过平台后恢复 Trigger 状态
-        private void OnTriggerExit2D(Collider2D other)
-        {
-            if (isPassThrough && dropTimer > 0f && other.GetComponent<FighterController>() != null)
-            {
-                platformCollider.isTrigger = true;  // 角色已穿过，恢复可站立
-            }
+            if (!isPassThrough || platformCollider == null) return;
+            platformCollider.enabled = false;   // 关键：直接关掉碰撞
+            dropTimer = disableCollisionTime;
         }
 
         // Scene 视图显示平台范围

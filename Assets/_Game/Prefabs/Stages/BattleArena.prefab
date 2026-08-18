@@ -142,7 +142,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61c731a5be819ed41a3cf688f51dfc08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  isPassThrough: 0
+  isPassThrough: 1
   disableCollisionTime: 0.5
 --- !u!1 &446710396540306142
 GameObject:
@@ -848,7 +848,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61c731a5be819ed41a3cf688f51dfc08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  isPassThrough: 0
+  isPassThrough: 1
   disableCollisionTime: 0.5
 --- !u!1 &5404710983599008731
 GameObject:
@@ -992,7 +992,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61c731a5be819ed41a3cf688f51dfc08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  isPassThrough: 0
+  isPassThrough: 1
   disableCollisionTime: 0.5
 --- !u!1 &6361296996128604470
 GameObject:

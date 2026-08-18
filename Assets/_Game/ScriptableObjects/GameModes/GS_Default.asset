@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 45d550fcbafef5943bb93b6e11d834a2, type: 3}
   m_Name: GS_Default
   m_EditorClassIdentifier: 
-  matchMode: 0
+  matchMode: 1
   stockCount: 3
-  matchTimeSeconds: 300
+  matchTimeSeconds: 60
   damageRatio: 1
   enableTeamMode: 0
   blastZoneWidth: {x: 30, y: 30}

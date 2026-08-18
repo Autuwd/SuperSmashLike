@@ -58,6 +58,16 @@ namespace SuperSmashLike.InputSystem
                 {
                     runtimeActions = ScriptableObject.CreateInstance<InputActionAsset>();
                     runtimeActions.LoadFromJson(playerInput.actions.ToJson());
+
+                    // ⭐ 双人输入隔离（2026-08-17）：
+                    // 克隆资产默认包含全部绑定（P1键盘区+P2键盘区+手柄），
+                    // 不加 bindingMask 时两套 InputManager 都响应所有按键 → 双人同输入 Bug。
+                    // 按 playerID 只保留本玩家的 control scheme 组：
+                    //   P1=KeyboardP1(WASD+JKL) / P2=KeyboardP2(方向键+小键盘) / 其他=Gamepad
+                    int pid = fighterController != null ? fighterController.playerID : 0;
+                    string group = pid == 0 ? "KeyboardP1" : pid == 1 ? "KeyboardP2" : "Gamepad";
+                    runtimeActions.bindingMask = InputBinding.MaskByGroup(group);
+                    Debug.Log($"[InputManager] 输入分组隔离: playerID={pid} → {group}", this);
                 }
             }
 
@@ -172,10 +182,16 @@ namespace SuperSmashLike.InputSystem
             fighterController.MoveInput = MoveInput;
 
             // 跳跃（按下的瞬间处理一次）
-            if (JumpPressed)
+            if (JumpPressed && MoveInput.y < -0.5f && fighterController.IsGrounded)
+            {
+                // 落穿：↓ + 跳跃键 → 从平台下落，不起跳
+                fighterController.DropThroughPlatform();
+                JumpPressed = false;  // ← 关键：消费掉，避免下面又 TryJump
+            }
+            else if (JumpPressed)
             {
                 fighterController.TryJump();
-                JumpPressed = false;  // 消费掉，避免重复触发
+                JumpPressed = false;
             }
 
             // 攻击（根据输入方向+是否空中选择攻击类型）

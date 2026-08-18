@@ -57,11 +57,14 @@ namespace SuperSmashLike.Combat
         // 由攻击动画末尾的 Animation Event 调用（Hitbox 在 Visual 上，事件能调到）
         public void AttackFinished()
         {
-            if (owner != null && owner.isAttacking &&
-                owner.StateMachine.CurrentState == FighterState.Attack)
+            // 条件放宽：只要还在攻击中，动画播完就解除 isAttacking（恢复操作能力）
+            if (owner != null && owner.isAttacking)
             {
+                owner.comboStep = 0;
                 owner.isAttacking = false;
-                owner.StateMachine.TransitionTo(FighterState.Idle);
+                // 只有状态机还停在 Attack 才切回 Idle（可能已被落地逻辑切走，不重复切）
+                if (owner.StateMachine.CurrentState == FighterState.Attack)
+                    owner.StateMachine.TransitionTo(FighterState.Idle);
             }
         }
 
