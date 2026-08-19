@@ -203,6 +203,13 @@ namespace SuperSmashLike.InputSystem
                 AttackPressed = false;
             }
 
+            // 特殊攻击（先做 Neutral Special，方向特技后补）
+            if (SpecialPressed)
+            {
+                fighterController.TrySpecial(fighterController.fighterData.specialNeutral);
+                SpecialPressed = false;
+            }
+
             // 防御（按住/松开）
             fighterController.SetShielding(ShieldHeld);
         }

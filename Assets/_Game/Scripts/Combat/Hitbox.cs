@@ -1,5 +1,6 @@
-using UnityEngine;
 using SuperSmashLike.Core;
+using SuperSmashLike.Managers;
+using UnityEngine;
 
 // ============================================================
 // Hitbox — 攻击判定框
@@ -79,6 +80,10 @@ namespace SuperSmashLike.Combat
             {
                 // 对目标斗士应用伤害
                 hurtbox.owner.ApplyDamage(attackData, owner);
+                // 屏幕震动（打击感：重击震得厉害）
+                Camera cam = Camera.main;
+                if (cam != null && cam.TryGetComponent<CameraManager>(out var camMgr))
+                    camMgr.Shake(0.3f, 0.15f);   // 强度0.3 / 0.15秒（可调）
                 // 命中特效（在 AttackData 资产里配）
                 if (attackData.hitEffectPrefab != null)
                 {

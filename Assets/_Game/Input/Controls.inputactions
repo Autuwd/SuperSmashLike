@@ -86,7 +86,7 @@
                     "path": "<Gamepad>/leftStick",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -207,7 +207,7 @@
                     "path": "<Gamepad>/buttonSouth",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Jump",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -240,7 +240,7 @@
                     "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Attack",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -273,7 +273,7 @@
                     "path": "<Gamepad>/buttonNorth",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Special",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -306,7 +306,7 @@
                     "path": "<Gamepad>/leftTrigger",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Shield",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -339,7 +339,7 @@
                     "path": "<Gamepad>/rightShoulder",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Grab",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -372,7 +372,7 @@
                     "path": "<Gamepad>/dpad/up",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";Gamepad",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Taunt",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -405,7 +405,7 @@
                     "path": "<Gamepad>/start",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": ";Gamepad;KeyboardP2",
                     "action": "Pause",
                     "isComposite": false,
                     "isPartOfComposite": false

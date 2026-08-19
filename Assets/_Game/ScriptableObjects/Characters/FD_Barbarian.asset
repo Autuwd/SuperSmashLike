@@ -204,8 +204,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: 1}
+    hitboxSize: {x: 1.6, y: 0.8}
   aerialForward:
     attackName: AirF
     damage: 10
@@ -222,8 +222,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0.9, y: 0.9}
+    hitboxSize: {x: 1.2, y: 0.7}
   aerialBack:
     attackName: AirB
     damage: 10
@@ -240,8 +240,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0.9, y: 0.9}
+    hitboxSize: {x: 1.2, y: 0.7}
   aerialUp:
     attackName: AirU
     damage: 8
@@ -258,8 +258,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: 1.6}
+    hitboxSize: {x: 0.8, y: 1.2}
   aerialDown:
     attackName: AirD
     damage: 9
@@ -276,15 +276,15 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: 0.3}
+    hitboxSize: {x: 1, y: 0.6}
   specialNeutral:
     attackName: Attack
     damage: 5
     shieldDamage: 3
-    knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackAngle: 20
+    knockbackBase: 3
+    knockbackGrowth: 10
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2

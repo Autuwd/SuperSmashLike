@@ -1,6 +1,7 @@
 using SuperSmashLike.Combat;
 using SuperSmashLike.Stage;
 using UnityEngine;
+using SuperSmashLike.InputSystem;
 
 // ============================================================
 // FighterController — 斗士角色主控制器（整个项目的核心类）
@@ -31,6 +32,7 @@ namespace SuperSmashLike.Core
         public Collider2D mainCollider;  // 主碰撞体
         public Hurtbox hurtbox;          // 受击判定框（子物体）
         public Transform visual;         // 模型父级（Visual），用于镜像翻转
+        public GameObject projectilePrefab;  // 特殊攻击投射物预制体（Inspector 拖入）
 
         [Header("Ground Detection")]
         public Transform groundCheck;        // 脚底检测点（空子物体）
@@ -58,7 +60,8 @@ namespace SuperSmashLike.Core
         public float attackFallbackTimer;  // 攻击兜底计时（独立于 attackTimer，防事件链路断卡死）
 
         [Header("Combo")]
-        public bool bufferedAttack;      // 攻击输入缓冲
+        //public bool bufferedAttack;      // 攻击输入缓冲
+        public InputBuffer inputBuffer = new InputBuffer();   // 帧号输入缓冲（5帧窗口）
         public int comboStep;            // 当前连招段（0=Jab1, 1=Jab2, 2=Jab3）
         public float comboWindowStart = 0.4f;   // 连招窗口起点（normalizedTime）
         public float comboWindowEnd = 0.85f;    // 连招窗口终点
@@ -254,9 +257,8 @@ namespace SuperSmashLike.Core
                 }
             }
 
-            if (isAttacking && bufferedAttack && comboStep < 2 && IsInComboWindow())
+            if (isAttacking && inputBuffer.ConsumeAttack() && comboStep < 2 && IsInComboWindow())
             {
-                bufferedAttack = false;
                 comboStep++;
                 attackData = GetComboAttack(comboStep);
                 foreach (var hb in GetComponentsInChildren<Hitbox>(true))
@@ -450,7 +452,6 @@ namespace SuperSmashLike.Core
                 {
                     if (IsInComboWindow())
                     {
-                        bufferedAttack = false;
                         comboStep++;
                         attackData = GetComboAttack(comboStep);
                         foreach (var hb in GetComponentsInChildren<Hitbox>(true))
@@ -462,14 +463,14 @@ namespace SuperSmashLike.Core
                     }
                     else
                     {
-                        bufferedAttack = true;   // 按太早 → 缓存，等窗口期自动打
+                        inputBuffer.BufferAttack();   // 按太早 → 缓冲
                     }
                 }
                 return;
             }
 
             // ===== 正常起手 =====
-            bufferedAttack = false;
+            inputBuffer.Clear();
             comboStep = 0;
             attackData = data;
             foreach (var hb in GetComponentsInChildren<Hitbox>(true))
@@ -478,6 +479,23 @@ namespace SuperSmashLike.Core
             attackTimer = attackData.startupTime + attackData.activeTime + attackData.recoveryTime;
             attackFallbackTimer = 1.2f;   // 兜底：动画事件断时 1.2s 后强制结束攻击
             StateMachine.TransitionTo(FighterState.Attack);
+        }
+
+        // 【特殊攻击】投射物型（Archer 箭 / Mage 火球）
+        public void TrySpecial(AttackData data)
+        {
+            if (data == null || isInKnockback || StateMachine.CurrentState == FighterState.Dead)
+                return;
+            if (isAttacking || isShielding) return;   // 攻击/举盾中不能发
+
+            // 生成投射物（位置：角色前方胸口高度，方向按朝向）
+            Vector3 spawnPos = transform.position + new Vector3(isFacingRight ? 0.8f : -0.8f, 1.0f, 0f);
+            var proj = Projectile.Spawn(
+                projectilePrefab, spawnPos, isFacingRight ? 1 : -1, data, this);
+            if (proj == null) return;
+
+            StateMachine.TransitionTo(FighterState.Attack);   // 复用攻击状态播动画
+            attackFallbackTimer = 0.5f;   // 快速结束
         }
 
         private bool IsInComboWindow()

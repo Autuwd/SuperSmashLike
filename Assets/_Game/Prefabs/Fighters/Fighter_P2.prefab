@@ -374,6 +374,7 @@ MonoBehaviour:
   mainCollider: {fileID: 0}
   hurtbox: {fileID: 8576703759707156349}
   visual: {fileID: 5057131309738088504}
+  projectilePrefab: {fileID: 7836282259554438209, guid: 66f2e5ced3abe714cb4c6952267d035f, type: 3}
   groundCheck: {fileID: 6017068753609380076}
   groundCheckRadius: 0.1
   groundLayer:
@@ -404,7 +405,6 @@ MonoBehaviour:
   isAttacking: 0
   attackTimer: 0
   attackFallbackTimer: 0
-  bufferedAttack: 0
   comboStep: 0
   comboWindowStart: 0.4
   comboWindowEnd: 0.85
@@ -458,7 +458,7 @@ MonoBehaviour:
       m_Calls: []
   m_ActionEvents: []
   m_NeverAutoSwitchControlSchemes: 1
-  m_DefaultControlScheme: KeyboardP2
+  m_DefaultControlScheme: Gamepad
   m_DefaultActionMap: Gameplay
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}

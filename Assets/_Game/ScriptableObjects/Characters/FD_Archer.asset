@@ -42,6 +42,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   jab2:
     attackName: Jab2
     damage: 3
@@ -58,6 +60,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   jab3:
     attackName: Jab3
     damage: 5
@@ -74,6 +78,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   tiltSide:
     attackName: SideTilt
     damage: 8
@@ -90,6 +96,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   tiltUp:
     attackName: UpTilt
     damage: 7
@@ -106,6 +114,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   tiltDown:
     attackName: DownTilt
     damage: 6
@@ -122,6 +132,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   smashSide:
     attackName: SmashSide
     damage: 15
@@ -138,6 +150,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   smashUp:
     attackName: SmashUp
     damage: 14
@@ -154,6 +168,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   smashDown:
     attackName: SmashDown
     damage: 13
@@ -170,6 +186,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   aerialNeutral:
     attackName: AirN
     damage: 8
@@ -186,6 +204,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   aerialForward:
     attackName: AirF
     damage: 10
@@ -202,6 +222,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   aerialBack:
     attackName: AirB
     damage: 10
@@ -218,6 +240,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   aerialUp:
     attackName: AirU
     damage: 8
@@ -234,6 +258,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   aerialDown:
     attackName: AirD
     damage: 9
@@ -250,13 +276,15 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   specialNeutral:
     attackName: Attack
     damage: 5
     shieldDamage: 3
-    knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackAngle: 20
+    knockbackBase: 3
+    knockbackGrowth: 10
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -266,6 +294,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   specialSide:
     attackName: Attack
     damage: 5
@@ -282,6 +312,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   specialUp:
     attackName: Attack
     damage: 5
@@ -298,6 +330,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   specialDown:
     attackName: Attack
     damage: 5
@@ -314,6 +348,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   grab:
     attackName: Attack
     damage: 5
@@ -330,6 +366,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   throwForward:
     attackName: Attack
     damage: 5
@@ -346,6 +384,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   throwBack:
     attackName: Attack
     damage: 5
@@ -362,6 +402,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   throwUp:
     attackName: Attack
     damage: 5
@@ -378,6 +420,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
   throwDown:
     attackName: Attack
     damage: 5
@@ -394,3 +438,5 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
