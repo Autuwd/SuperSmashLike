@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 45d550fcbafef5943bb93b6e11d834a2, type: 3}
   m_Name: GS_Default
   m_EditorClassIdentifier: 
-  matchMode: 1
+  matchMode: 0
   stockCount: 3
   matchTimeSeconds: 60
   damageRatio: 1

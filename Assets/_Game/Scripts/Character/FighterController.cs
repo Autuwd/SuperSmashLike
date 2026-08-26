@@ -91,6 +91,10 @@ namespace SuperSmashLike.Core
         public bool isInvincible;  // 重生后是否无敌
         public float respawnTimer; // 无敌剩余时间
 
+        // === 剩余命数 ===
+        [Header("Stock")]
+        public int remainingStocks = 3;
+
         // ==================== 事件 ====================
         public System.Action<FighterState, FighterState> OnStateChanged;  // 状态变化
         public System.Action<float, FighterController> OnDamaged;          // 受伤 (伤害值, 攻击者)
@@ -118,6 +122,8 @@ namespace SuperSmashLike.Core
             StateMachine.Initialize(FighterState.Idle);          // 初始状态 = 待机
             currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;  // 满盾
             remainingJumps = fighterData.jumpCount;             // 满跳跃次数
+            // === 同步剩余命数 ===
+            remainingStocks = GameManager.Instance.gameSettings.stockCount;
             GameManager.Instance.RegisterFighter(this);         // 向 GameManager 注册
         }
 
@@ -133,9 +139,14 @@ namespace SuperSmashLike.Core
             // 跳跃缓冲倒计时
             if (jumpBufferTimer > 0f) jumpBufferTimer -= Time.deltaTime;
 
-            // 死亡角色不更新
             if (StateMachine.CurrentState == FighterState.Dead)
+            {
+                // 只关渲染和碰撞，不关 GameObject
+                if (visual != null) visual.gameObject.SetActive(false);
+                if (mainCollider != null) mainCollider.enabled = false;
+                if (hurtbox != null) hurtbox.gameObject.SetActive(false);
                 return;
+            }
 
             UpdateTimers();      // 攻击计时器、无敌计时器、护盾消耗/恢复
             UpdateGravity();     // 重力加速度
@@ -592,10 +603,11 @@ namespace SuperSmashLike.Core
             StateMachine.TransitionTo(FighterState.Stun);  // 破盾后大眩晕
         }
 
-        // 【重生】被击杀后在出生点复活
+// 【重生】被击杀后在出生点复活
         // 重置所有状态 + 短时间无敌
         public void Respawn(Vector3 position)
         {
+            Debug.Log($"[Respawn] {name} 开始重生，位置: {position}");
             transform.position = position;
             CurrentDamage = 0f;
             CurrentKnockbackSpeed = 0f;
@@ -608,19 +620,36 @@ namespace SuperSmashLike.Core
             isShielding = false;
             remainingJumps = fighterData.jumpCount;
 
-            StateMachine.TransitionTo(FighterState.Idle);
+            // 强制重置状态机到 Idle（避免 Dead 无法 TransitionTo Idle）
+            StateMachine.Initialize(FighterState.Idle);
 
-            if (rb != null)
-                rb.velocity = Vector2.zero;
+            if (rb != null) rb.velocity = Vector2.zero;
+
+            // === 恢复渲染和碰撞 ===
+            if (visual != null) visual.gameObject.SetActive(true);
+            if (mainCollider != null) mainCollider.enabled = true;
+            if (hurtbox != null) hurtbox.gameObject.SetActive(true);
+
+            Debug.Log($"[Respawn] {name} 重生完成，状态: {StateMachine.CurrentState}, visual.active={visual?.gameObject.activeSelf}");
         }
 
-        // 【击杀】角色出界或生命归零时调用
+// 【击杀】角色出界或生命归零时调用
         public void Kill()
         {
+            Debug.Log($"[Kill] {name} 被击杀, 当前状态: {StateMachine.CurrentState}, 剩余命数: {remainingStocks}");
+            if (StateMachine.CurrentState == FighterState.Dead) return;
+            if (_isKilling) return; _isKilling = true; // 防重入
+            
+            // === 扣命 ===
+            remainingStocks = Mathf.Max(0, remainingStocks - 1);
+            Debug.Log($"[Kill] 扣命后剩余: {remainingStocks}");
+
             StateMachine.TransitionTo(FighterState.Dead);
             OnKilled?.Invoke(this);
-            GameManager.Instance.UnregisterFighter(this);
+            //GameManager.Instance.UnregisterFighter(this);
+            _isKilling = false;
         }
+        private bool _isKilling = false;
 
         // ==================== 可视化调试 ====================
         private void OnDrawGizmosSelected()

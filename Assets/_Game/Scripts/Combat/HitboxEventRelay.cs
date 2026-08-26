@@ -21,6 +21,11 @@ namespace SuperSmashLike.Combat
         {
             if (target == null) return;
 
+            if (target.attackData.hitboxSize == Vector2.zero)
+            {
+                Debug.LogWarning($"[Hitbox] {name} hitboxSize 为 0，检查资产配置！", this);
+            }
+
             // 1. 从 target 拿攻击数据和所属角色
             float dir = target.owner.isFacingRight ? 1f : -1f;
 

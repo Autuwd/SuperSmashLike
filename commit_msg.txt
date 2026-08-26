@@ -1,0 +1,7 @@
+Day22-23: Respawn System + S5 UI Day1-2 Complete
+
+- HUD Damage/Stock Display complete
+- Respawn System fixed: StateMachine.Initialize, HashSet registry, respawnTime 3s
+- BlastZone anti-reentry, null checks
+- StockDisplay/DamageDisplay UTF-8 encoding fix
+- Complete logging chain: Kill->OnKilled->RespawnAfterDelay->Respawn

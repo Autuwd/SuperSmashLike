@@ -96,8 +96,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 1793199471691246, guid: 5e219a54f48ed0a4aa9dc8af25f90c38, type: 3}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 1.1, y: 1.2}
-    hitboxSize: {x: 1.5, y: 0.7}
+    hitboxOffset: {x: 0.9, y: 0.6}
+    hitboxSize: {x: 1.2, y: 0.7}
   tiltUp:
     attackName: UpTilt
     damage: 7
@@ -114,8 +114,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: 1.4}
+    hitboxSize: {x: 0.9, y: 1.1}
   tiltDown:
     attackName: DownTilt
     damage: 6
@@ -132,8 +132,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: 0.2}
+    hitboxSize: {x: 1.1, y: 0.6}
   smashSide:
     attackName: SmashSide
     damage: 15
@@ -150,8 +150,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 1.1, y: 0.6}
+    hitboxSize: {x: 1.5, y: 0.9}
   smashUp:
     attackName: SmashUp
     damage: 14
@@ -168,8 +168,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: 1.7}
+    hitboxSize: {x: 1, y: 1.4}
   smashDown:
     attackName: SmashDown
     damage: 13
@@ -186,8 +186,8 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
-    hitboxOffset: {x: 0, y: 0}
-    hitboxSize: {x: 0, y: 0}
+    hitboxOffset: {x: 0, y: -0.3}
+    hitboxSize: {x: 1.2, y: 0.7}
   aerialNeutral:
     attackName: AirN
     damage: 8

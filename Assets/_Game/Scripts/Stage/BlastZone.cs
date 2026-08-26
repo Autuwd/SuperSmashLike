@@ -1,5 +1,6 @@
-using UnityEngine;
 using SuperSmashLike.Core;
+using SuperSmashLike.Managers;
+using UnityEngine;
 
 // ============================================================
 // BlastZone — 屏幕外边界淘汰区域
@@ -25,19 +26,37 @@ namespace SuperSmashLike.Stage
         public bool isLeft;
         public bool isRight;
 
+        private MatchManager _matchManager;
+        private bool _triggered = false; // 防重入
+
+        public enum Side { Left, Right, Top, Bottom }
+        public Side side;
+
         // 角色出界事件（MatchManager 可以监听此事件来调 Respawn）
         public System.Action<FighterController> OnPlayerOutOfBounds;
+
+        private void Awake()
+        {
+            _matchManager = FindObjectOfType<MatchManager>();
+        }
 
         // 当碰撞体进入 BlastZone 时触发
         private void OnTriggerEnter2D(Collider2D other)
         {
-            FighterController fighter = other.GetComponentInParent<FighterController>();
-            // 确认是角色且还没死（防止重复触发）
+            if (_triggered) return;
+            var fighter = other.GetComponentInParent<FighterController>();
             if (fighter != null && fighter.StateMachine.CurrentState != FighterState.Dead)
             {
-                fighter.Kill();  // 角色死亡
-                OnPlayerOutOfBounds?.Invoke(fighter);
+                _triggered = true;
+                _matchManager?.OnPlayerOutOfBounds(fighter, side);
+                StartCoroutine(ResetTrigger());
             }
+        }
+
+        private System.Collections.IEnumerator ResetTrigger()
+        {
+            yield return new WaitForSeconds(0.5f);
+            _triggered = false;
         }
 
         // Scene 视图显示边界范围（半透明红色）
