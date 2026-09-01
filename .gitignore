@@ -31,3 +31,12 @@ Assets/AssetStoreTools*
 
 # OpenCode 工具目录
 .omo/
+
+# 下载缓存（第三方资产包，不纳入版本库）
+Assets/DownloadCache/
+
+# Windows 系统字体源文件（TTC，非项目资产；只提交提取出的 TTF + SDF）
+Assets/_Game/Fonts/*.TTC
+Assets/_Game/Fonts/*.ttc
+Assets/_Game/Fonts/*.TTC.meta
+Assets/_Game/Fonts/*.ttc.meta

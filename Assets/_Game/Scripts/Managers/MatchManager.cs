@@ -62,7 +62,6 @@ namespace SuperSmashLike.Managers
         {
             settings = GameManager.Instance.gameSettings;
             MatchTimeRemaining = settings.matchTimeSeconds;
-            StartMatch();
             SpawnAndBindHUD();
         }
 
@@ -126,17 +125,20 @@ namespace SuperSmashLike.Managers
             }
         }
 
-// 结束比赛
+        // 结束比赛
         public void EndMatch(int winnerID = -1)
         {
             if (_isMatchEnding) return; _isMatchEnding = true;
+            _matchStarted = false;   // ← 重置，允许重赛再次开赛
 
             IsMatchActive = false;
             OnGameOver?.Invoke(winnerID);
             GameManager.Instance.EndMatch();  // 通知 GameManager 切换到结算状态
 
             // === 清理所有 Fighter 注册 ===
-            foreach (var f in GameManager.Instance.ActivePlayers)
+            // 遍历副本，避免"枚举期间修改集合"（foreach 原集合 + 内部 Remove 冲突）
+            var snapshot = new List<FighterController>(GameManager.Instance.ActivePlayers);
+            foreach (var f in snapshot)
             {
                 if (f != null) GameManager.Instance.UnregisterFighter(f);
             }
@@ -358,10 +360,18 @@ namespace SuperSmashLike.Managers
             }
         }
 
+        private bool _matchStarted = false;   // ← 类字段，防重复开赛
+
         private void OnGameStateChangedHandler(GameState newState)
         {
             if (newState == GameState.Battle)
             {
+                // 进入战斗状态才真正开赛（针对"选完角色才开赛"的流程）
+                if (!_matchStarted)
+                {
+                    StartMatch();
+                    _matchStarted = true;
+                }
                 var players = GameManager.Instance.ActivePlayers;
                 foreach (var f in players) RebindFighterEvents(f);
             }

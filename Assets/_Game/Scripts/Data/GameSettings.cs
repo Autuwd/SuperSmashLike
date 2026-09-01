@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // ============================================================
@@ -39,6 +40,24 @@ namespace SuperSmashLike.Core
         public bool enableItems = true;          // 是否开启道具
         public float itemSpawnInterval = 15f;    // 道具刷新间隔
         public int maxItemsOnField = 5;          // 场上最大道具数
+
+        [Header("Character Select")]
+        public List<FighterData> selectableFighters = new();   // 可选手列表（Inspector 配置）
+        private FighterData[] _selections = new FighterData[4]; // 每名玩家选中的角色
+
+        /// <summary>返回可选手列表（供选人面板用）</summary>
+        public List<FighterData> GetSelectableFighters() => selectableFighters;
+
+        /// <summary>记录某玩家的选择（跨场景保持）</summary>
+        public void SetSelection(int playerIndex, FighterData fd)
+        {
+            if (playerIndex >= 0 && playerIndex < _selections.Length)
+                _selections[playerIndex] = fd;
+        }
+
+        /// <summary>读取某玩家的选择（战斗场景 Spawn 用）</summary>
+        public FighterData GetSelection(int playerIndex)
+            => playerIndex >= 0 && playerIndex < _selections.Length ? _selections[playerIndex] : null;
 
         public enum MatchMode
         {
