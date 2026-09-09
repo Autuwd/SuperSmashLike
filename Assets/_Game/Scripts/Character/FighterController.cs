@@ -453,7 +453,7 @@ namespace SuperSmashLike.Core
         // 传入 AttackData 决定用哪个攻击动作
         public void TryAttack(AttackData data)
         {
-            if (isInKnockback || StateMachine.CurrentState == FighterState.Dead)
+            if (isInKnockback || isShielding || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
             // ===== 连招：正在攻击中 → 判断能否推进到下一段 =====
@@ -534,6 +534,15 @@ namespace SuperSmashLike.Core
             if (isInvincible || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
+            // ===== 举盾防御：伤害全部由护盾承受，不掉血、不击飞 =====
+            if (isShielding)
+            {
+                currentShieldHP -= DamageSystem.CalculateShieldDamage(attack, currentShieldHP);
+                if (currentShieldHP <= 0f)
+                    BreakShield();   // 破盾 → 进 Stun 大眩晕
+                return;              // ← 关键！盾防走完直接返回，不再掉血/击飞
+            }
+
             // 应用伤害（含全局缩放系数）
             float finalDamage = attack.damage * GameManager.Instance.gameSettings.damageRatio;
             CurrentDamage += finalDamage;
@@ -579,7 +588,9 @@ namespace SuperSmashLike.Core
         public void SetShielding(bool active)
         {
             if (StateMachine.CurrentState == FighterState.Knockback
-                || StateMachine.CurrentState == FighterState.Dead)
+            || StateMachine.CurrentState == FighterState.Dead
+            || StateMachine.CurrentState == FighterState.Stun
+            || StateMachine.CurrentState == FighterState.ShieldStun)
                 return;
 
             // 只有"盾状态真实变化"才切换——不干扰其他状态！
