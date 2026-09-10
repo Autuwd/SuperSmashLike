@@ -1,6 +1,7 @@
 using UnityEngine;
 using SuperSmashLike.Core;
 using System.Collections.Generic;
+using UnityEngine.UI;
 
 // ============================================================
 // CameraManager — 摄像机管理器
@@ -42,6 +43,27 @@ namespace SuperSmashLike.Managers
         private float shakeDuration;     // 剩余震动时间
         private float shakeElapsed;      // 已震动时间
         private Vector3 shakeOffset;     // 当前帧偏移量
+
+        // ===== White Flash（M1-D2 盾反闪白，代码自动创建，零场景操作）=====
+        private Image whiteFlashImage;
+
+        private void Awake()
+        {
+            // 代码自动创建全屏白块：ScreenSpace Overlay Canvas + 拉伸 Image
+            var canvasGO = new GameObject("ParryFlashCanvas");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var imgGO = new GameObject("WhiteFlash");
+            imgGO.transform.SetParent(canvasGO.transform, false);
+            var img = imgGO.AddComponent<Image>();
+            img.color = new Color(1f, 1f, 1f, 0f);    // 默认全透明
+            img.raycastTarget = false;
+            var rt = img.rectTransform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;  // 全屏四角拉伸
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            whiteFlashImage = img;
+            DontDestroyOnLoad(canvasGO);   // 跨场景常驻（选人→战斗通用）
+        }
 
         private void Start()
         {
@@ -171,6 +193,37 @@ namespace SuperSmashLike.Managers
                 shakeIntensity = 0f;
             }
             return offset;
+        }
+
+        public void FlashWhite(float duration)
+        {
+            if (whiteFlashImage == null) return;
+            StopAllCoroutines();          // 防连触发叠加
+            StartCoroutine(FlashRoutine(duration));
+        }
+
+        private System.Collections.IEnumerator FlashRoutine(float duration)
+        {
+            var c = whiteFlashImage.color;
+            // 亮起 30% 时间 → 保持峰值 → 衰减归零（unscaledDeltaTime：Hitstop 时也能闪完）
+            float t = 0f;
+            float rise = duration * 0.3f;
+            while (t < rise)
+            {
+                t += Time.unscaledDeltaTime;
+                c.a = Mathf.Clamp01(t / rise);
+                whiteFlashImage.color = c;
+                yield return null;
+            }
+            c.a = 1f; whiteFlashImage.color = c;
+            while (t < duration)
+            {
+                t += Time.unscaledDeltaTime;
+                c.a = Mathf.Clamp01(1f - (t - rise) / (duration - rise));
+                whiteFlashImage.color = c;
+                yield return null;
+            }
+            c.a = 0f; whiteFlashImage.color = c;
         }
     }
 }

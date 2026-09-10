@@ -1,7 +1,8 @@
 using SuperSmashLike.Combat;
+using SuperSmashLike.InputSystem;
+using SuperSmashLike.Managers;
 using SuperSmashLike.Stage;
 using UnityEngine;
-using SuperSmashLike.InputSystem;
 
 // ============================================================
 // FighterController — 斗士角色主控制器（整个项目的核心类）
@@ -86,6 +87,14 @@ namespace SuperSmashLike.Core
         [Header("Shield")]
         public float currentShieldHP;  // 护盾当前耐久
         public bool isShielding;       // 是否在举盾
+
+        [Header("Parry")]
+        public int parryWindowFrames = 10;          // 盾反窗口：4帧
+        public float parryStunDuration = 1.2f;     // 攻击者被盾反后的眩晕时长(≥1s)
+        public float shieldBreakStunDuration = 1.5f; // 破盾眩晕时长（D1 缺口，顺手补）
+        public System.Action<FighterController> OnParrySuccess;  // 盾反成功事件
+        private int shieldStartFrame = -999;       // 举盾启动帧号（用帧号！）
+        private float stunTimer = 0f;              // Stun 剩余时间
 
         [Header("Respawn")]
         public bool isInvincible;  // 重生后是否无敌
@@ -299,6 +308,14 @@ namespace SuperSmashLike.Core
             else if (currentShieldHP < GameManager.Instance.gameSettings.shieldMaxHP)
             {
                 currentShieldHP += GameManager.Instance.gameSettings.shieldRegenPerSecond * Time.deltaTime;
+            }
+
+            // Stun 倒计时（D2 补：原 D1 破盾 Stun 无退出 → 永久定身）
+            if (StateMachine.CurrentState == FighterState.Stun && stunTimer > 0f)
+            {
+                stunTimer -= Time.deltaTime;
+                if (stunTimer <= 0f)
+                    StateMachine.TransitionTo(IsGrounded ? FighterState.Idle : FighterState.Fall);
             }
         }
 
@@ -534,9 +551,21 @@ namespace SuperSmashLike.Core
             if (isInvincible || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
+            Debug.Log($"[D] 命中! 防御={name}, isShielding={isShielding}, 帧={Time.frameCount}");   // Log1
+
             // ===== 举盾防御：伤害全部由护盾承受，不掉血、不击飞 =====
             if (isShielding)
             {
+                Debug.Log($"[D] 进盾分支, 帧差={Time.frameCount - shieldStartFrame}");   // Log2
+
+                // M1-D2 Parry：举盾 4 帧内被命中 → 盾反
+                if (Time.frameCount - shieldStartFrame <= parryWindowFrames)
+                {
+                    Debug.Log($"[D] Parry触发!");   // Log3
+                    PerformParry(attacker);
+                    return;    // 不掉血、不掉盾
+                }
+
                 currentShieldHP -= DamageSystem.CalculateShieldDamage(attack, currentShieldHP);
                 if (currentShieldHP <= 0f)
                     BreakShield();   // 破盾 → 进 Stun 大眩晕
@@ -596,6 +625,8 @@ namespace SuperSmashLike.Core
             // 只有"盾状态真实变化"才切换——不干扰其他状态！
             if (active && StateMachine.CurrentState != FighterState.Shield)
             {
+                shieldStartFrame = Time.frameCount;   //盾启动瞬间才是窗口起点
+                Debug.Log($"[D] 举盾! shieldStartFrame={shieldStartFrame}, 帧={Time.frameCount}");   // Log0
                 isShielding = true;
                 StateMachine.TransitionTo(FighterState.Shield);
             }
@@ -606,15 +637,36 @@ namespace SuperSmashLike.Core
             }
         }
 
+        //执行格挡反击：攻击方进入眩晕，自己无伤且不掉盾
+        public void PerformParry(FighterController attacker)
+        {
+            // 自身：无伤 + 不掉盾（上面的 return 已保证，这里只做成功反馈）
+            // 攻击方：进 Stun
+            attacker?.EnterStun(parryStunDuration);
+            // 闪白
+            var cam = FindObjectOfType<CameraManager>();
+            if (cam != null) cam.FlashWhite(0.15f);
+            // 声音位预留（M8 音效接入时补）
+            // TODO(M8): PlayParrySFX()
+            OnParrySuccess?.Invoke(attacker);
+        }
+
+        public void EnterStun(float duration)
+        {
+            stunTimer = duration;
+            StateMachine.TransitionTo(FighterState.Stun);
+        }
+
         // 【破盾】护盾耐久归零时触发
         public void BreakShield()
         {
             isShielding = false;
             currentShieldHP = 0f;
-            StateMachine.TransitionTo(FighterState.Stun);  // 破盾后大眩晕
+            //StateMachine.TransitionTo(FighterState.Stun);  // 破盾后大眩晕
+            EnterStun(shieldBreakStunDuration);
         }
 
-// 【重生】被击杀后在出生点复活
+        // 【重生】被击杀后在出生点复活
         // 重置所有状态 + 短时间无敌
         public void Respawn(Vector3 position)
         {
@@ -644,7 +696,7 @@ namespace SuperSmashLike.Core
             Debug.Log($"[Respawn] {name} 重生完成，状态: {StateMachine.CurrentState}, visual.active={visual?.gameObject.activeSelf}");
         }
 
-// 【击杀】角色出界或生命归零时调用
+        // 【击杀】角色出界或生命归零时调用
         public void Kill()
         {
             Debug.Log($"[Kill] {name} 被击杀, 当前状态: {StateMachine.CurrentState}, 剩余命数: {remainingStocks}");

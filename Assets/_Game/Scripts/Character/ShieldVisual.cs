@@ -19,6 +19,8 @@ namespace SuperSmashLike.Core
         private SpriteRenderer sr;
         private float shieldMaxHP = 100f;    // 兜底值，Start 里从 GameSettings 覆盖
 
+        private float scaleVel;
+
         private void Awake()
         {
             sr = GetComponent<SpriteRenderer>();
@@ -40,10 +42,15 @@ namespace SuperSmashLike.Core
             if (sr.enabled != visible)
                 sr.enabled = visible;
 
-            // 耐久越低盾越透明：满盾 0.65 透明度，残盾最低 0.15
+            // 耐久越低盾越小：满盾 1.0 倍 → 残盾最低 0.15 倍（保持可见）
             float hpRatio = Mathf.Clamp01(fighter.currentShieldHP / shieldMaxHP);
+            float targetScale = hpRatio <= 0f ? 0f : Mathf.Max(0.15f, hpRatio);
+            float s = Mathf.SmoothDamp(transform.localScale.x, targetScale, ref scaleVel, 0.05f);
+            transform.localScale = Vector3.one * s;
+
+            // 透明度固定（主轴改成缩放，透明度保持明亮可见）
             Color c = sr.color;
-            c.a = 0.65f * Mathf.Max(0.15f, hpRatio);
+            c.a = 0.65f;
             sr.color = c;
         }
     }
