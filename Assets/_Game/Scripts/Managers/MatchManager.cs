@@ -105,14 +105,26 @@ namespace SuperSmashLike.Managers
                 // 命数制：存活玩家 ≤ 1 → 结束
                 if (settings.matchMode == GameSettings.MatchMode.Stock)
                 {
-                    var playersInGame = GameManager.Instance.ActivePlayers
+                    var allPlayers = GameManager.Instance.ActivePlayers;
+                    var playersInGame = allPlayers
                         .FindAll(p =>
                             p.StateMachine.CurrentState != FighterState.Dead
                             || (p.StateMachine.CurrentState == FighterState.Dead && p.remainingStocks > 0)
                         );
 
+                    // 诊断日志：每秒打印一次玩家状态
+                    if (Time.frameCount % 60 == 0)
+                    {
+                        Debug.Log($"[StockCheck] ActivePlayers={allPlayers.Count}, playersInGame={playersInGame.Count}");
+                        foreach (var p in allPlayers)
+                            Debug.Log($"  P{p.playerID}: state={p.StateMachine.CurrentState}, stocks={p.remainingStocks}");
+                    }
+
                     if (playersInGame.Count <= 1)
                     {
+                        Debug.LogWarning($"[StockCheck] GAME OVER! playersInGame={playersInGame.Count}");
+                        foreach (var p in playersInGame)
+                            Debug.LogWarning($"  Survivor: P{p.playerID} state={p.StateMachine.CurrentState} stocks={p.remainingStocks}");
                         yield return new WaitForSeconds(gameOverDelay);
                         int winnerID = -1;
                         if (playersInGame.Count == 1) winnerID = playersInGame[0].playerID;
@@ -396,7 +408,7 @@ namespace SuperSmashLike.Managers
             if (centerTimerText != null) centerTimerText.text = "00:00";
         }
 
-private void OnDestroy()
+        private void OnDestroy()
         {
             if (matchCoroutine != null) StopCoroutine(matchCoroutine);
 
