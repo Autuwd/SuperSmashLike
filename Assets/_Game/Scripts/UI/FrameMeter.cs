@@ -5,31 +5,32 @@ using SuperSmashLike.Combat;
 using SuperSmashLike.Core;
 
 // ============================================================
-// FrameMeter - 帧数表（M1-D2）
+// FrameMeter - 帧数表（M1-D2 预设体驱动 v4）
 // 职责：显示指定玩家的攻击三段（黄/红/蓝）+ 段末帧数 + 游标 + 信息文本
 //
-// Inspector 可调参数（全部可手动调整）：
+// ★ 预设体驱动：UI 结构（60 格子/段末标签/游标/Info）由预设体提供，
+//   不再由代码创建。生成方式：菜单 Tools → FrameMeter → Create Prefab
+//   → Assets/_Game/Prefabs/UI/FrameMeter.prefab，然后可直接在 Inspector
+//   调整每个元素的表现（颜色/字号/位置/大小）。
+//
+// 预设体子物体命名规约（代码按名字 Find，改不了）：
+//   Cell0..Cell59  - 60 个格子（Image）
+//   Seg0..Seg2     - 段末数字标签（TextMeshProUGUI，游标上方）
+//   Cursor         - 白色游标竖线（Image）
+//   Info           - 信息文本（TextMeshProUGUI，条上方）
+//
+// Inspector 可调参数：
 //   playerIndex  - 对应 GameManager.ActivePlayers 的索引
-//   fontAsset    - TMP 字体资产（空 = 用 TMP Settings 默认字体）
-//   fontSize     - 信息文本字号
-//   segFontSize  - 段末帧数字号
-//   textAboveBar - true 文字在条上方，false 在条下方
-//   textOffsetY  - 文字相对条的额外偏移（微调用）
-//   infoTemplate - 信息文本格式（{0}=起手帧 {1}=总帧 {2}=硬直差）
+//   totalCells   - 格子数量（须与预设体里的实际格子数一致！）
+//   cStartup/cActive/cRecovery/cEmpty - 颜色
+//   debugLog     - 打印每帧状态
 // ============================================================
 public class FrameMeter : MonoBehaviour
 {
     [Header("Player")]
     public int playerIndex;              // 0 = P1, 1 = P2
 
-    [Header("Font")]
-    public TMP_FontAsset fontAsset;      // 拖入中文字体资产；空 = TMP 默认字体
-    [Range(8, 72)] public float fontSize = 20f;
-    [Range(8, 48)] public float segFontSize = 14f;
-
     [Header("Layout")]
-    public bool textAboveBar = true;     // true = 文字在条上方，false = 条下方
-    [Range(-100, 100)] public float textOffsetY = 4f;   // 额外垂直偏移（微调用）
     public int totalCells = 60;
 
     [Header("Colors")]
@@ -41,7 +42,7 @@ public class FrameMeter : MonoBehaviour
     [Header("Debug")]
     public bool debugLog;                // 勾上 → Console 打印每帧状态
 
-    // ---- 私有状态 ----
+    // ---- 预设体引用（Awake 里 Find 填充）----
     private Image[] cells;
     private RectTransform cursor;
     private TextMeshProUGUI infoText;
@@ -54,98 +55,61 @@ public class FrameMeter : MonoBehaviour
     private bool wasAttacking;
     private float attackStartTime;
 
-    // ==================== 构建 UI ====================
+    // ==================== 构建 UI（预设体驱动）====================
     private void Awake()
     {
-        var rt = GetComponent<RectTransform>();
-        if (rt == null)
+        if (GetComponent<RectTransform>() == null)
         {
             Debug.LogError("[FrameMeter] 需要 RectTransform，必须挂在 UI Canvas 下！", this);
             return;
         }
 
-        float myW = rt.rect.width;
-        float myH = rt.rect.height;
-        if (myW < 1f || myH < 1f)
-        {
-            Debug.LogError($"[FrameMeter] RectTransform 尺寸无效 ({myW}x{myH})，请在 Inspector 设 Width/Height。", this);
-            return;
-        }
-
-        // --- 从 RectTransform 推算尺寸 ---
-        barHeight = myH * 0.55f;
-        cellWidth = (myW - totalCells) / totalCells;
-        if (cellWidth < 1f) cellWidth = 1f;
-
-        float barWidth = totalCells * cellWidth;
-        startX = -barWidth / 2f;
-
-        // 文字垂直位置
-        float textY = textAboveBar
-            ? (barHeight / 2f + textOffsetY)
-            : -(barHeight / 2f + textOffsetY);
-
-        Vector2 anchor = new Vector2(0.5f, 0.5f);
-
-        // ---- 60 个格子 ----
+        // 从预设体按命名规约找引用（不再代码创建 UI）
         cells = new Image[totalCells];
         for (int i = 0; i < totalCells; i++)
         {
-            var go = new GameObject($"Cell{i}", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(transform, false);
-            var img = go.GetComponent<Image>();
-            img.color = cEmpty;
-            img.raycastTarget = false;
-            var crt = img.rectTransform;
-            crt.anchorMin = crt.anchorMax = anchor;
-            crt.sizeDelta = new Vector2(cellWidth - 1f, barHeight);
-            crt.anchoredPosition = new Vector2(startX + i * cellWidth + cellWidth * 0.5f, 0f);
-            cells[i] = img;
+            var t = transform.Find($"Cells/Cell{i}");
+            if (t == null)
+            {
+                Debug.LogError($"[FrameMeter P{playerIndex}] 找不到预设体子物体 Cell{i}！请用" +
+                               $"菜单 Tools → FrameMeter → Create Prefab 生成预设体。", this);
+                cells = null;
+                return;
+            }
+            cells[i] = t.GetComponent<Image>();
         }
 
-        // ---- 3 个段末数字标签 ----
+        cursor = transform.Find("Cursor")?.GetComponent<RectTransform>();
+        infoText = transform.Find("Info")?.GetComponent<TextMeshProUGUI>();
         for (int s = 0; s < 3; s++)
+            segLabel[s] = transform.Find($"Seg{s}")?.GetComponent<TextMeshProUGUI>();
+
+        if (cursor == null || infoText == null || segLabel[0] == null || segLabel[1] == null || segLabel[2] == null)
         {
-            var go = new GameObject($"Seg{s}", typeof(RectTransform), typeof(TextMeshProUGUI));
-            go.transform.SetParent(transform, false);
-            var txt = go.GetComponent<TextMeshProUGUI>();
-            txt.fontSize = segFontSize;
-            txt.color = Color.white;
-            txt.alignment = TextAlignmentOptions.Center;
-            txt.raycastTarget = false;
-            if (fontAsset != null) txt.font = fontAsset;
-            var trt = txt.rectTransform;
-            trt.anchorMin = trt.anchorMax = anchor;
-            trt.sizeDelta = new Vector2(cellWidth * 4f, segFontSize * 1.5f);
-            segLabel[s] = txt;
+            Debug.LogError("[FrameMeter] 预设体结构不完整（需要 Cursor/Info/Seg0-2）。请重新生成预设体。", this);
+            cells = null;
+            return;
         }
 
-        // ---- 游标（白色竖线）----
-        var cg = new GameObject("Cursor", typeof(RectTransform), typeof(Image));
-        cg.transform.SetParent(transform, false);
-        var curImg = cg.GetComponent<Image>();
-        curImg.color = Color.white;
-        curImg.raycastTarget = false;
-        cursor = curImg.rectTransform;
-        cursor.anchorMin = cursor.anchorMax = anchor;
-        cursor.sizeDelta = new Vector2(3f, barHeight + 6f);
-        cursor.anchoredPosition = new Vector2(-1000f, 0f);
+        // 布局参数：从预设体实际布局推算（与生成器一致）
+        var rt = GetComponent<RectTransform>();
+        float myW = rt.rect.width;
+        float myH = rt.rect.height;
+        barHeight = myH * 0.55f;
+        cellWidth = (myW - totalCells) / totalCells;
+        if (cellWidth < 1f) cellWidth = 1f;
+        startX = -totalCells * cellWidth / 2f;
 
-        // ---- 信息文本 ----
-        var ig = new GameObject("Info", typeof(RectTransform), typeof(TextMeshProUGUI));
-        ig.transform.SetParent(transform, false);
-        infoText = ig.GetComponent<TextMeshProUGUI>();
-        infoText.fontSize = fontSize;
-        infoText.color = Color.white;
-        infoText.raycastTarget = false;
-        if (fontAsset != null) infoText.font = fontAsset;
-        var irt = infoText.rectTransform;
-        irt.anchorMin = irt.anchorMax = anchor;
-        irt.sizeDelta = new Vector2(barWidth + 60f, fontSize * 2f);
-        irt.anchoredPosition = new Vector2(0f, textY);
+        for (int i = 0; i < totalCells; i++)
+        {
+            var crt = cells[i].rectTransform;
+            crt.sizeDelta = new Vector2(cellWidth - 1f, barHeight);              // 宽高跟着新参数走
+            crt.anchoredPosition = new Vector2(
+                startX + i * cellWidth + cellWidth * 0.5f, 0f);                  // 位置按新宽度重排
+        }
 
         if (debugLog)
-            Debug.Log($"[FrameMeter P{playerIndex}] built: myW={myW} cellW={cellWidth} barH={barHeight} font={fontSize}");
+            Debug.Log($"[FrameMeter P{playerIndex}] bound: cells={totalCells} cellW={cellWidth:F1} barH={barHeight:F1}");
     }
 
     // ==================== 每帧更新 ====================
@@ -178,7 +142,9 @@ public class FrameMeter : MonoBehaviour
         for (int s = 0; s < 3; s++)
         {
             segLabel[s].text = "";
-            segLabel[s].rectTransform.anchoredPosition = new Vector2(-1000f, 0f);
+            // 只藏 x（-1000 移出屏幕），y 保留预设体里摆好的位置，不然 PaintSeg 会读到被改乱的 y
+            float keepY = segLabel[s].rectTransform.anchoredPosition.y;
+            segLabel[s].rectTransform.anchoredPosition = new Vector2(-1000f, keepY);
         }
 
         float cursorX = -1000f;
@@ -204,13 +170,13 @@ public class FrameMeter : MonoBehaviour
             float knockSpeed = DamageSystem.CalculateKnockbackVelocity(atk, f.CurrentDamage, f.fighterData.weight);
             int hitstunF = Mathf.RoundToInt(DamageSystem.CalculateHitstun(knockSpeed));
             int adv = hitstunF - recF;
-            infoText.text = $"Startup {startF}F | Total {totalF}F | Adv {(adv >= 0 ? "+" : "")}{adv}F";
+            infoText.text = $"发动 {startF}F | 总计 {totalF}F | 帧数差 {(adv >= 0 ? "+" : "")}{adv}F";
 
             cursorX = startX + curFrame * cellWidth;
         }
         else
         {
-            infoText.text = f != null ? "Startup -- | Total -- | Adv 0F" : "--- no player ---";
+            infoText.text = f != null ? "发动 -- | 总计 -- | 帧数差 0F" : "--- no player ---";
         }
 
         cursor.anchoredPosition = new Vector2(cursorX, 0f);
@@ -225,10 +191,14 @@ public class FrameMeter : MonoBehaviour
         if (end > from)
         {
             segLabel[segIdx].text = $"{segFrames}";
+            // x 由代码算（跟着格子走），y 完全用预设体里摆好的位置（可在 Inspector 拖）
             float x = startX + (end - 0.5f) * cellWidth;
-            float textY = textAboveBar ? (barHeight / 2f + textOffsetY) : -(barHeight / 2f + textOffsetY);
-            segLabel[segIdx].rectTransform.anchoredPosition = new Vector2(x, textY);
+            float y = segLabel[segIdx].rectTransform.anchoredPosition.y;
+            segLabel[segIdx].rectTransform.anchoredPosition = new Vector2(x, y);
+
+            Debug.Log($"Seg{segIdx} end={end} x={x:F1} 格子中心应= {startX + (end - 0.5f) * cellWidth:F1}");
         }
+
     }
 
     private int ToF(float seconds) => Mathf.RoundToInt(seconds * 60f);

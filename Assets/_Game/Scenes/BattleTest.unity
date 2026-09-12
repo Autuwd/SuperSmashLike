@@ -140,7 +140,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &25742416
 RectTransform:
   m_ObjectHideFlags: 0
@@ -716,7 +716,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gameSettings: {fileID: 11400000, guid: 61db51ac74888a849b541de34a3ac18f, type: 2}
   fighterPrefab: {fileID: 7541988065048707383, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
-  skipToBattle: 0
+  skipToBattle: 1
   activePlayers: []
 --- !u!4 &527332636
 Transform:
@@ -864,7 +864,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &731714184
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1824,7 +1824,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1241379109
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2372,6 +2372,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 209148071}
     m_Modifications:
+    - target: {fileID: 4328476397409911871, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 600
+      objectReference: {fileID: 0}
     - target: {fileID: 5670997612494584334, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -2452,12 +2456,26 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5997232355162462268, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
+      propertyPath: segFontSize
+      value: 20
+      objectReference: {fileID: 0}
+    - target: {fileID: 5997232355162462268, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
+      propertyPath: textOffsetY
+      value: 45
+      objectReference: {fileID: 0}
     - target: {fileID: 6314526003163419451, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
       propertyPath: m_Name
       value: UI_HUD
       objectReference: {fileID: 0}
+    - target: {fileID: 6314526003163419451, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 6947413450311131467, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
+    - {fileID: 775763620413857601, guid: 815072f6b2f00304b974a53e43779df9, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 815072f6b2f00304b974a53e43779df9, type: 3}

@@ -89,7 +89,7 @@ namespace SuperSmashLike.Core
         public bool isShielding;       // 是否在举盾
 
         [Header("Parry")]
-        public int parryWindowFrames = 10;          // 盾反窗口：4帧
+        public int parryWindowFrames = 10;          // 盾反窗口：10帧
         public float parryStunDuration = 1.2f;     // 攻击者被盾反后的眩晕时长(≥1s)
         public float shieldBreakStunDuration = 1.5f; // 破盾眩晕时长（D1 缺口，顺手补）
         public System.Action<FighterController> OnParrySuccess;  // 盾反成功事件
