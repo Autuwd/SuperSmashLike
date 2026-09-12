@@ -197,9 +197,17 @@ namespace SuperSmashLike.InputSystem
             // 攻击（根据输入方向+是否空中选择攻击类型）
             if (AttackPressed)
             {
-                AttackData attack = GetContextualAttack();
-                if (attack != null)
-                    fighterController.TryAttack(attack);
+                // 被抓中：攻击键 = 挣扎，不走正常攻击
+                if (fighterController.StateMachine.CurrentState == FighterState.Grabbed)
+                {
+                    fighterController.OnMashGrabEscape();
+                }
+                else
+                {
+                    AttackData attack = GetContextualAttack();
+                    if (attack != null)
+                        fighterController.TryAttack(attack);
+                }
                 AttackPressed = false;
             }
 
@@ -210,8 +218,17 @@ namespace SuperSmashLike.InputSystem
                 SpecialPressed = false;
             }
 
+            // 抓取（按下的瞬间处理一次）
+            if (GrabPressed) 
+            { 
+                fighterController.TryGrab(); 
+                GrabPressed = false; 
+            }
+
             // 防御（按住/松开）
             fighterController.SetShielding(ShieldHeld);
+
+            fighterController.TechInputHeld = ShieldHeld;
         }
 
         // ================================================================

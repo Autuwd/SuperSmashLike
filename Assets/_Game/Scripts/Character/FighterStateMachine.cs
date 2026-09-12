@@ -81,7 +81,8 @@ namespace SuperSmashLike.Core
             // 防御中只能：放下盾/被打出盾硬直/出抓取
             if (CurrentState == FighterState.Shield)
                 return target == FighterState.Idle || target == FighterState.ShieldStun
-                    || target == FighterState.Grab || target == FighterState.Stun;
+                    || target == FighterState.Grab || target == FighterState.Stun
+                    || target == FighterState.Grabbed;
 
             // 其他情况默认允许转换
             return true;
@@ -93,7 +94,7 @@ namespace SuperSmashLike.Core
         {
             if (!CanTransitionTo(newState))
             {
-                //Debug.Log($"🚫 切换被拒: {CurrentState} → {newState}");
+                Debug.Log($"🚫 切换被拒: {CurrentState} → {newState}");
                 return;
             }
             //Debug.Log($"✅ 切换: {CurrentState} → {newState}");

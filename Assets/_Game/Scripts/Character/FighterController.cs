@@ -49,6 +49,8 @@ namespace SuperSmashLike.Core
         public Vector2 MoveInput { get; set; }             // 输入方向（由 InputManager 写入）
         private FighterState lastAnimState = (FighterState)(-1);   // 上次同步的状态
 
+        public bool TechInputHeld { get; set; }
+
         [Header("Jump")]
         public int remainingJumps;  // 剩余跳跃次数（大乱斗通常可跳2次）
         public bool isJumping;      // 是否正在跳跃
@@ -96,6 +98,19 @@ namespace SuperSmashLike.Core
         private int shieldStartFrame = -999;       // 举盾启动帧号（用帧号！）
         private float stunTimer = 0f;              // Stun 剩余时间
 
+        [Header("Tech")]
+        public float techBounceSpeed = 6f;         // 受身成功小反弹速度
+        public float techInvincibleTime = 0.5f;    // 受身无敌时长（秒）
+
+        [Header("Grab")]
+        public float grabRange = 1.2f;                // 抓取距离（可 Inspector 调）
+        public float grabHoldDistance = 1.0f;        // 被抓方锁在面前的间距
+
+        // 运行时状态（和 grabTarget 一起放这）：
+        [Header("Grab State")]  // 或并进 Grab 区
+        public FighterController grabTarget;   // 我抓着谁（null = 没抓）
+        public FighterController grabber;      // 谁抓着我（null = 没被抓）
+
         [Header("Respawn")]
         public bool isInvincible;  // 重生后是否无敌
         public float respawnTimer; // 无敌剩余时间
@@ -103,6 +118,13 @@ namespace SuperSmashLike.Core
         // === 剩余命数 ===
         [Header("Stock")]
         public int remainingStocks = 3;
+
+        // 挣扎计数器（Inspector 调阈值）
+        public int escapeMashThreshold = 8;   // 连按攻击 8 次挣脱
+        private int escapeMashCount = 0;
+        private float grabTimer = 0f;  // 抓取超时计时器（兜底，防止异常断链）
+
+        public enum ThrowDir { Forward, Back, Up, Down }
 
         // ==================== 事件 ====================
         public System.Action<FighterState, FighterState> OnStateChanged;  // 状态变化
@@ -155,6 +177,20 @@ namespace SuperSmashLike.Core
                 if (mainCollider != null) mainCollider.enabled = false;
                 if (hurtbox != null) hurtbox.gameObject.SetActive(false);
                 return;
+            }
+
+            // 被抓状态：锁在抓取者正前方 + 清速度
+            if (StateMachine.CurrentState == FighterState.Grabbed)
+            {
+                if (grabber != null)
+                {
+                    Vector3 anchor = grabber.transform.position
+                        + new Vector3(grabber.isFacingRight ? 1f : -1f, 0.5f, 0f) * grabHoldDistance;
+                    transform.position = Vector3.Lerp(transform.position, anchor, 15f * Time.deltaTime);
+                }
+                velocity = Vector2.zero;   // 清惯性
+                knockbackVelocity = Vector2.zero;
+                return;                    // ← 重点：被抓期间不进移动/跳跃/转向逻辑！
             }
 
             UpdateTimers();      // 攻击计时器、无敌计时器、护盾消耗/恢复
@@ -317,6 +353,22 @@ namespace SuperSmashLike.Core
                 if (stunTimer <= 0f)
                     StateMachine.TransitionTo(IsGrounded ? FighterState.Idle : FighterState.Fall);
             }
+
+            // 抓取超时兜底（异常断链/极端竞态时强制解抓，防永久死锁）
+            if (grabTarget != null && StateMachine.CurrentState == FighterState.Grab)
+            {
+                grabTimer += Time.deltaTime;
+                if (grabTimer > 5f)
+                {
+                    grabTimer = 0f;
+                    ReleaseGrab();
+                    Debug.Log("[Grab] 超时自动松开");
+                }
+            }
+            else
+            {
+                grabTimer = 0f;
+            }
         }
 
         // ==================== 重力系统 ====================
@@ -325,6 +377,19 @@ namespace SuperSmashLike.Core
             // 空中且不在击飞中 → 增加向下的重力速度
             if (!IsGrounded && !isInKnockback)
                 velocity.y += Physics2D.gravity.y * gravityScale * Time.deltaTime;
+
+            if (isInKnockback && IsGrounded)
+            {
+                isInKnockback = false;
+                velocity.y = 0f;                                 // ★ 不然粘地抖动（原 else-if 的置零被跳过）
+                if (TechInputHeld)
+                    PerformTech();                               // 成功：反弹 + 无敌
+                else
+                {
+                    StateMachine.TransitionTo(FighterState.Idle);   // ★ Knockback→Stun 被拒，先回 Idle
+                    EnterStun(0.3f);                             // 再进硬直（Idle→Stun 默认允许 ✅）
+                }
+            }
             // 落地 → 重置垂直速度 + 恢复跳跃次数
             else if (IsGrounded && velocity.y <= 0f)
             {
@@ -416,6 +481,32 @@ namespace SuperSmashLike.Core
 
         // ==================== 公开方法 ====================
 
+        // 【防御开关】由 InputManager 调用（按住/松开）
+        public void SetShielding(bool active)
+        {
+            if (StateMachine.CurrentState == FighterState.Knockback
+                || StateMachine.CurrentState == FighterState.Dead
+                || StateMachine.CurrentState == FighterState.Stun
+                || StateMachine.CurrentState == FighterState.ShieldStun
+                || StateMachine.CurrentState == FighterState.Grab      // ★ 抓取中不能举盾
+                || StateMachine.CurrentState == FighterState.Grabbed)  // ★ 被抓中不能举盾
+                return;
+
+            // 只有"盾状态真实变化"才切换——不干扰其他状态！
+            if (active && StateMachine.CurrentState != FighterState.Shield)
+            {
+                shieldStartFrame = Time.frameCount;   //盾启动瞬间才是窗口起点
+                Debug.Log($"[D] 举盾! shieldStartFrame={shieldStartFrame}, 帧={Time.frameCount}");   // Log0
+                isShielding = true;
+                StateMachine.TransitionTo(FighterState.Shield);
+            }
+            else if (!active && StateMachine.CurrentState == FighterState.Shield)
+            {
+                isShielding = false;
+                StateMachine.TransitionTo(FighterState.Idle);
+            }
+        }
+
         // 朝向翻转：镜像 Visual 的 X 缩放（3D 模型旋转会背面朝镜头，必须用镜像）
         private void SetFacing(bool faceRight)
         {
@@ -454,22 +545,16 @@ namespace SuperSmashLike.Core
             }
         }
 
-        // 落穿：找到脚下最近的 Platform 并让它翻转单向
-        public void DropThroughPlatform()
-        {
-            Collider2D[] hits = Physics2D.OverlapCircleAll(
-                groundCheck.position, groundCheckRadius + 0.05f, groundLayer);
-            foreach (var c in hits)
-            {
-                var plat = c.GetComponentInParent<Platform>();
-                if (plat != null) { plat.DropThrough(); break; }
-            }
-        }
-
         // 【攻击】由 InputManager 调用
         // 传入 AttackData 决定用哪个攻击动作
         public void TryAttack(AttackData data)
         {
+            if (grabTarget != null && StateMachine.CurrentState == FighterState.Grab)
+            {
+                PerformThrow(GetThrowDirection());   // 传方向枚举
+                return;
+            }
+
             if (isInKnockback || isShielding || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
@@ -526,6 +611,62 @@ namespace SuperSmashLike.Core
             attackFallbackTimer = 0.5f;   // 快速结束
         }
 
+        // 【抓取】由 InputManager 调用
+        public void TryGrab()
+        {
+            // === 守卫：抓取方条件 ===
+            if (isInKnockback || StateMachine.CurrentState == FighterState.Dead) return;
+            if (StateMachine.CurrentState == FighterState.Attack) return;   // 攻击中不能抓
+            if (grabTarget != null) return;                                 // 已在抓，别重复
+
+            // === 前方检测：角色面前一个圆 ===
+            // 中心点 = 角色位置 + 面向方向 × grabRange（把圆推到身前）
+            Vector2 center = (Vector2)transform.position
+                + new Vector2(isFacingRight ? 1f : -1f, 0f) * grabRange;
+            Collider2D[] hits = Physics2D.OverlapCircleAll(center, grabRange);
+
+            // === 找可抓目标 ===
+            FighterController victim = null;
+            foreach (var hit in hits)
+            {
+                var hb = hit.GetComponent<Hurtbox>();
+                if (hb == null || hb.owner == this) continue;   // 只要对手的受击框
+
+                // 受害者可抓条件（大乱斗规则）：
+                //   能操作(CanAct) 或 举盾(盾可被抓！) → 可抓
+                //   击飞中/硬直中/已被抓/无敌/死亡 → 不可抓
+                bool grabbable = hb.owner.StateMachine.CanAct()
+                    || hb.owner.StateMachine.CurrentState == FighterState.Shield;
+                if (!grabbable) continue;
+                if (hb.owner.isInvincible || hb.owner.StateMachine.CurrentState == FighterState.Grabbed) continue;
+
+                victim = hb.owner;
+                break;
+            }
+            if (victim == null) return;
+
+            // === 双向引用 + 双状态转换 ===
+            isShielding = false;                              // ★ 自己（可能从盾抓）收盾
+            victim.isShielding = false;                       // ★ 对方（举盾被抓）收盾
+            grabTarget = victim;
+            victim.grabber = this;
+            StateMachine.TransitionTo(FighterState.Grab);
+            victim.StateMachine.TransitionTo(FighterState.Grabbed);
+            Debug.Log($"[Grab] {name} 抓住 {victim.name}");
+        }
+
+        // 落穿：找到脚下最近的 Platform 并让它翻转单向
+        public void DropThroughPlatform()
+        {
+            Collider2D[] hits = Physics2D.OverlapCircleAll(
+                groundCheck.position, groundCheckRadius + 0.05f, groundLayer);
+            foreach (var c in hits)
+            {
+                var plat = c.GetComponentInParent<Platform>();
+                if (plat != null) { plat.DropThrough(); break; }
+            }
+        }
+
         private bool IsInComboWindow()
         {
             // normalizedTime 对动画帧精确，且自动兼容 Animator 倍速
@@ -543,6 +684,30 @@ namespace SuperSmashLike.Core
                 _ => fighterData.jab1,
             };
         }
+
+        private ThrowDir GetThrowDirection()
+        {
+            Vector2 input = MoveInput;            // InputManager 每帧无条件写入，Grab 状态下也有值 ✅
+            float ax = Mathf.Abs(input.x);
+            float ay = Mathf.Abs(input.y);
+            const float deadzone = 0.5f;          // 摇杆/方向键死区
+
+            // 1. 垂直优先：上下推得明显 → 上投/下投
+            if (ay > ax && ay > deadzone)
+                return input.y > 0f ? ThrowDir.Up : ThrowDir.Down;
+
+            // 2. 水平：判断推的是"前"还是"后"（相对面朝方向！）
+            if (ax > deadzone)
+            {
+                // 推的方向 与 面朝方向 同向 = 前投；反向 = 后投
+                bool pushingForward = (input.x > 0f) == isFacingRight;
+                return pushingForward ? ThrowDir.Forward : ThrowDir.Back;
+            }
+
+            // 3. 没推方向 → 默认前投（防御性兜底，避免 null/坏输入）
+            return ThrowDir.Forward;
+        }
+
 
         // 【受击】由 Hitbox.OnTriggerEnter2D 调用
         // 流程：计算伤害 → 累加百分比 → 计算击飞 → 应用击飞
@@ -613,30 +778,6 @@ namespace SuperSmashLike.Core
             }
         }
 
-        // 【防御开关】由 InputManager 调用（按住/松开）
-        public void SetShielding(bool active)
-        {
-            if (StateMachine.CurrentState == FighterState.Knockback
-            || StateMachine.CurrentState == FighterState.Dead
-            || StateMachine.CurrentState == FighterState.Stun
-            || StateMachine.CurrentState == FighterState.ShieldStun)
-                return;
-
-            // 只有"盾状态真实变化"才切换——不干扰其他状态！
-            if (active && StateMachine.CurrentState != FighterState.Shield)
-            {
-                shieldStartFrame = Time.frameCount;   //盾启动瞬间才是窗口起点
-                Debug.Log($"[D] 举盾! shieldStartFrame={shieldStartFrame}, 帧={Time.frameCount}");   // Log0
-                isShielding = true;
-                StateMachine.TransitionTo(FighterState.Shield);
-            }
-            else if (!active && StateMachine.CurrentState == FighterState.Shield)
-            {
-                isShielding = false;
-                StateMachine.TransitionTo(FighterState.Idle);
-            }
-        }
-
         //执行格挡反击：攻击方进入眩晕，自己无伤且不掉盾
         public void PerformParry(FighterController attacker)
         {
@@ -649,6 +790,87 @@ namespace SuperSmashLike.Core
             // 声音位预留（M8 音效接入时补）
             // TODO(M8): PlayParrySFX()
             OnParrySuccess?.Invoke(attacker);
+        }
+
+        //空中恢复
+        public void PerformTech()
+        {
+            // 1. 清击飞
+            knockbackVelocity = Vector2.zero;
+            isInKnockback = false;
+            // 2. 小反弹（数值挂 Inspector）
+            velocity.y = techBounceSpeed;
+            // 3. 短暂无敌（复用现有计时器 L294-299 自动解除）
+            isInvincible = true;
+            respawnTimer = techInvincibleTime;
+            // 4. 回可操作状态
+            StateMachine.TransitionTo(IsGrounded ? FighterState.Idle : FighterState.Fall);
+        }
+
+        //投掷
+        public void PerformThrow(ThrowDir dir)
+        {
+            if (grabTarget == null) return;
+            FighterController victim = grabTarget;
+            AttackData data = dir switch
+            {
+                ThrowDir.Forward => fighterData.throwForward,
+                ThrowDir.Back => fighterData.throwBack,
+                ThrowDir.Up => fighterData.throwUp,
+                ThrowDir.Down => fighterData.throwDown,
+                _ => fighterData.throwForward,   // ★ 兜底：未命名值 → 默认前投
+            };
+            if (data == null) return;
+
+            // 伤害照常累加
+            float finalDamage = data.damage * GameManager.Instance.gameSettings.damageRatio;
+            victim.CurrentDamage += finalDamage;
+            victim.OnDamaged?.Invoke(finalDamage, this);
+
+            // ⚠️ 坑：不能复用 CalculateKnockbackDirection（它按"打过来的方向"算）
+            // 投掷方向必须按自身朝向固定构造：
+            Vector2 throwDir = dir switch
+            {
+                ThrowDir.Forward => isFacingRight ? Vector2.right : Vector2.left,
+                ThrowDir.Back => isFacingRight ? Vector2.left : Vector2.right,
+                ThrowDir.Up => Vector2.up,
+                ThrowDir.Down => Vector2.down,
+                _ => Vector2.zero,               // ★ 兜底：防御性归零
+            };
+            float knockSpeed = DamageSystem.CalculateKnockbackVelocity(
+                data, victim.CurrentDamage, victim.fighterData.weight);
+            victim.ApplyKnockback(throwDir, knockSpeed);
+
+            // 投完脱离（唯一出口：另一方回 Idle）
+            ReleaseGrab();
+        }
+
+        // 任何脱离场景（投完/挣脱/超时）都走这：对称清理双方
+        private void ReleaseGrab()
+        {
+            // 我是抓取方 → 先清我的目标
+            if (grabTarget != null)
+            {
+                var victim = grabTarget;
+                grabTarget = null;
+                victim.grabber = null;                       // 清对方反向引用
+                victim.escapeMashCount = 0;                  // 顺手重置挣扎计数
+                if (victim.StateMachine.CurrentState == FighterState.Grabbed)
+                    victim.StateMachine.TransitionTo(FighterState.Idle);
+                if (StateMachine.CurrentState == FighterState.Grab)
+                    StateMachine.TransitionTo(FighterState.Idle);   // ★ 抓取方也要回 Idle！
+            }
+            // 我是被抓方 → 再清抓我的人
+            if (grabber != null)
+            {
+                var holder = grabber;
+                grabber = null;
+                holder.grabTarget = null;
+                if (holder.StateMachine.CurrentState == FighterState.Grab)
+                    holder.StateMachine.TransitionTo(FighterState.Idle);
+                if (StateMachine.CurrentState == FighterState.Grabbed)
+                    StateMachine.TransitionTo(FighterState.Idle);
+            }
         }
 
         public void EnterStun(float duration)
@@ -713,6 +935,15 @@ namespace SuperSmashLike.Core
             _isKilling = false;
         }
         private bool _isKilling = false;
+
+        public void OnMashGrabEscape()
+        {
+            if (StateMachine.CurrentState != FighterState.Grabbed) return;
+            escapeMashCount++;
+            Debug.Log($"[Escape] 挣扎 {escapeMashCount}/{escapeMashThreshold}");
+            if (escapeMashCount >= escapeMashThreshold)
+                ReleaseGrab();   // 挣脱（对称版：双方都清）
+        }
 
         // ==================== 可视化调试 ====================
         private void OnDrawGizmosSelected()
