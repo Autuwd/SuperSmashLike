@@ -124,6 +124,8 @@ namespace SuperSmashLike.Core
         private int escapeMashCount = 0;
         private float grabTimer = 0f;  // 抓取超时计时器（兜底，防止异常断链）
 
+        private bool hasLeftGroundInKnockback; // 击飞中是否离开过地面（用于 FreeMove 过渡）
+
         public enum ThrowDir { Forward, Back, Up, Down }
 
         // ==================== 事件 ====================
@@ -307,6 +309,7 @@ namespace SuperSmashLike.Core
                 if (attackFallbackTimer <= 0f)
                 {
                     comboStep = 0;
+                    animator.SetInteger("ComboStep", 0);
                     isAttacking = false;
                     if (StateMachine.CurrentState == FighterState.Attack)
                         StateMachine.TransitionTo(FighterState.Idle);
@@ -316,6 +319,7 @@ namespace SuperSmashLike.Core
             if (isAttacking && inputBuffer.ConsumeAttack() && comboStep < 2 && IsInComboWindow())
             {
                 comboStep++;
+                animator.SetInteger("ComboStep", comboStep);
                 attackData = GetComboAttack(comboStep);
                 foreach (var hb in GetComponentsInChildren<Hitbox>(true))
                     hb.attackData = attackData;
@@ -378,7 +382,7 @@ namespace SuperSmashLike.Core
             if (!IsGrounded && !isInKnockback)
                 velocity.y += Physics2D.gravity.y * gravityScale * Time.deltaTime;
 
-            if (isInKnockback && IsGrounded)
+            if (isInKnockback && IsGrounded && hasLeftGroundInKnockback)
             {
                 isInKnockback = false;
                 velocity.y = 0f;                                 // ★ 不然粘地抖动（原 else-if 的置零被跳过）
@@ -566,6 +570,7 @@ namespace SuperSmashLike.Core
                     if (IsInComboWindow())
                     {
                         comboStep++;
+                        animator.SetInteger("ComboStep", comboStep);
                         attackData = GetComboAttack(comboStep);
                         foreach (var hb in GetComponentsInChildren<Hitbox>(true))
                             hb.attackData = attackData;
@@ -585,6 +590,7 @@ namespace SuperSmashLike.Core
             // ===== 正常起手 =====
             inputBuffer.Clear();
             comboStep = 0;
+            animator.SetInteger("ComboStep", 0);
             attackData = data;
             foreach (var hb in GetComponentsInChildren<Hitbox>(true))
                 hb.attackData = attackData;
@@ -757,6 +763,8 @@ namespace SuperSmashLike.Core
             CurrentKnockbackSpeed = speed;
             knockbackVelocity = direction.normalized * speed;
             isInKnockback = true;
+
+            hasLeftGroundInKnockback = false;
 
             // 计算受击硬直时间（速度越快硬直越长）
             float hitstunDuration = DamageSystem.CalculateHitstun(speed);
