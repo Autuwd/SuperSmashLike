@@ -28,7 +28,6 @@ namespace SuperSmashLike.Core
         Grab,        // 抓取——抓取对手成功后的状态
         Grabbed,     // 被抓取——被对手抓住，可挣扎
         Dead,        // 死亡——出界或被淘汰
-        FreeMove,    // 自由移动——击飞后速度降低到一定程度，可空中受控但还不能攻击
     }
 
     // [System.Serializable] 使它在 Inspector 中可展开查看
@@ -109,8 +108,7 @@ namespace SuperSmashLike.Core
         {
             return CurrentState == FighterState.Jump
                 || CurrentState == FighterState.Fall
-                || CurrentState == FighterState.Knockback
-                || CurrentState == FighterState.FreeMove;
+                || CurrentState == FighterState.Knockback;
         }
 
         // 辅助方法：角色能否主动做出操作？
@@ -120,8 +118,7 @@ namespace SuperSmashLike.Core
             return CurrentState == FighterState.Idle
                 || CurrentState == FighterState.Run
                 || CurrentState == FighterState.Jump
-                || CurrentState == FighterState.Fall
-                || CurrentState == FighterState.FreeMove;
+                || CurrentState == FighterState.Fall;
         }
 
         // 辅助方法：角色是否可被攻击？

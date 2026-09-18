@@ -77,7 +77,12 @@ namespace SuperSmashLike.Combat
         // ================================================================
         public static float CalculateHitstun(float knockbackSpeed)
         {
-            return Mathf.Max(0.05f, knockbackSpeed * 0.01f + 0.1f);
+            // 击飞越快 → 硬直越长；上限 0.833s = 对齐 Knockback.anim 时长（动画播完再转 FreeMove）
+            // 速度 10 → 0.15s（轻击），40 → 0.49s（中击），70+ → 0.833s（重击拉满）
+            float minDur = 0.15f;
+            float maxDur = 0.833f;                        // ⚠️ 若换动画记得同步这个值
+            float t = Mathf.InverseLerp(10f, 70f, knockbackSpeed);
+            return Mathf.Lerp(minDur, maxDur, t);
         }
 
         // 计算护盾扣减伤害（不超过护盾当前值）

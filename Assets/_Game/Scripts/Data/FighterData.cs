@@ -85,6 +85,9 @@ namespace SuperSmashLike.Core
     [System.Serializable]
     public class AttackData
     {
+        [Header("Animation")]
+        public int animIndex;                 // 动画索引（FighterController 用于播放动画）
+
         [Header("Damage")]
         public string attackName = "Attack";  // 攻击名称
         public float damage = 5f;             // 伤害值（百分比）
@@ -94,6 +97,7 @@ namespace SuperSmashLike.Core
         public float knockbackAngle = 45f;     // 击飞角度（0=水平, 90=垂直）
         public float knockbackBase = 30f;      // 基础击飞值
         public float knockbackGrowth = 50f;    // 击飞成长率（伤害越高影响越大）
+        public float hitstunOverride = -1f;
 
         [Header("Timing (seconds)")]
         public float startupTime = 0.1f;       // 前摇时间（按键到判定出现）

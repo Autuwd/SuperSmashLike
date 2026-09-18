@@ -40,6 +40,12 @@ namespace SuperSmashLike.EditorTools
                 Undo.RecordObject(data, "Reset Fighter Data");
                 ResetToDefaults(data);
             }
+
+            // 攻击时序同步（从动画事件换算三段时长）
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Attack Timing Sync", EditorStyles.boldLabel);
+            if (GUILayout.Button("Sync AttackData From Anim Events"))
+                AttackDataEventSync.Sync(data);
         }
 
         // 统计该角色已配置了多少种攻击（用于快速检查是否配置完整）
@@ -60,6 +66,15 @@ namespace SuperSmashLike.EditorTools
             if (data.aerialBack != null) count++;
             if (data.aerialUp != null) count++;
             if (data.aerialDown != null) count++;
+            if (data.specialNeutral != null) count++;
+            if (data.specialSide != null) count++;
+            if (data.specialUp != null) count++;
+            if (data.specialDown != null) count++;
+            if (data.throwForward != null) count++;
+            if (data.throwBack != null) count++;
+            if (data.throwUp != null) count++;
+            if (data.throwDown != null) count++;
+            if (data.grab != null) count++;
             return count;
         }
 

@@ -42,6 +42,14 @@ namespace SuperSmashLike.InputSystem
         public bool TauntPressed { get; private set; }       // 嘲讽（按下的瞬间）
         public bool PausePressed { get; private set; }       // 暂停
 
+
+        // ===== 长按判定（09-15 新增）=====
+        public bool AttackHeld { get; private set; }     // 攻击键是否按住（长按判定用）
+        public float AttackPressTime { get; private set; } // 按下瞬间的时刻
+        private Vector2 pendingAttackDir;                  // 按下瞬间的方向快照
+        private bool chargePending;                        // 是否在等"短按/长按"判定窗
+        public float longPressThreshold = 0.15f;           // 长按阈值（秒）
+
         private void Awake()
         {
             playerInput = GetComponent<PlayerInput>();
@@ -92,6 +100,7 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Move").canceled += OnMoveCtx;
             gameplayMap.FindAction("Jump").started += OnJumpCtx;
             gameplayMap.FindAction("Attack").started += OnAttackCtx;
+            gameplayMap.FindAction("Attack").canceled += OnAttackCancelCtx;
             gameplayMap.FindAction("Special").started += OnSpecialCtx;
             gameplayMap.FindAction("Shield").started += OnShieldStartCtx;
             gameplayMap.FindAction("Shield").canceled += OnShieldCancelCtx;
@@ -113,6 +122,7 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Move").canceled -= OnMoveCtx;
             gameplayMap.FindAction("Jump").started -= OnJumpCtx;
             gameplayMap.FindAction("Attack").started -= OnAttackCtx;
+            gameplayMap.FindAction("Attack").canceled -= OnAttackCancelCtx;
             gameplayMap.FindAction("Special").started -= OnSpecialCtx;
             gameplayMap.FindAction("Shield").started -= OnShieldStartCtx;
             gameplayMap.FindAction("Shield").canceled -= OnShieldCancelCtx;
@@ -137,6 +147,13 @@ namespace SuperSmashLike.InputSystem
         private void OnAttackCtx(InputAction.CallbackContext ctx)
         {
             AttackPressed = true;
+            AttackHeld = true;
+            AttackPressTime = Time.time;
+        }
+
+        private void OnAttackCancelCtx(InputAction.CallbackContext ctx)
+        {
+            AttackHeld = false;   // 松手瞬间 → 记录"没按着了"
         }
 
         private void OnSpecialCtx(InputAction.CallbackContext ctx)
@@ -197,32 +214,84 @@ namespace SuperSmashLike.InputSystem
             // 攻击（根据输入方向+是否空中选择攻击类型）
             if (AttackPressed)
             {
-                // 被抓中：攻击键 = 挣扎，不走正常攻击
-                if (fighterController.StateMachine.CurrentState == FighterState.Grabbed)
+                FighterState st = fighterController.StateMachine.CurrentState;
+
+                // ① 被抓中：攻击键 = 挣扎（原逻辑保留）
+                if (st == FighterState.Grabbed)
                 {
                     fighterController.OnMashGrabEscape();
+                    chargePending = false;      // 顺手取消可能残留的判定窗
                 }
-                else
+                // ② 抓取中：攻击键 = 投掷
+                //    ★ 必须走这里，绝不能掉进下面的判定窗——否则长按会触发 StartCharge，
+                //      把 Grab 状态顶成 Attack，导致投掷失效 + 双方死锁
+                //    ★ 传什么 AttackData 无所谓：TryAttack 开头会拦截 grabTarget 并执行 PerformThrow
+                else if (st == FighterState.Grab)
                 {
-                    AttackData attack = GetContextualAttack();
+                    AttackPressed = false;
+                }
+                // ③ 空中 / 地面无方向 → 立即出招，零延迟
+                else if (fighterController.StateMachine.IsInAir()
+                         || (Mathf.Abs(MoveInput.x) <= 0.5f && Mathf.Abs(MoveInput.y) <= 0.5f))
+                {
+                    AttackData attack = GetImmediateAttack();   // 空中 / 无方向 → 立即攻击
                     if (attack != null)
                         fighterController.TryAttack(attack);
                 }
-                AttackPressed = false;
+                // ④ 地面 + 有方向 → 进入判定窗（等 0.15s 区分短按/长按）
+                else
+                {
+                    pendingAttackDir = MoveInput;   // ★ 方向快照！以按下瞬间为准
+                    chargePending = true;
+                }
+                AttackPressed = false;   // 消费
+            }
+
+            // 判定窗倒计时（chargePending 期间每帧查）
+            if (chargePending)
+            {
+                float held = Time.time - AttackPressTime;
+                if (held >= longPressThreshold)
+                {
+                    chargePending = false;
+                    fighterController.StartCharge(GetSmashAttack(pendingAttackDir));  // 长按 → 蓄力
+                }
+                else if (!AttackHeld)
+                {
+                    chargePending = false;
+                    fighterController.TryAttack(GetTiltAttack(pendingAttackDir));     // 短按 → 强攻击
+                }
+                // 都不到 → 继续等
+            }
+
+            // 蓄力中松手 → 释放
+            if (fighterController.isCharging && !AttackHeld)
+            {
+                fighterController.ReleaseCharge();
             }
 
             // 特殊攻击（先做 Neutral Special，方向特技后补）
             if (SpecialPressed)
             {
-                fighterController.TrySpecial(fighterController.fighterData.specialNeutral);
+                fighterController.TrySpecial(GetContextualSpecial());
                 SpecialPressed = false;
             }
 
             // 抓取（按下的瞬间处理一次）
             if (GrabPressed) 
-            { 
-                fighterController.TryGrab(); 
-                GrabPressed = false; 
+            {
+                FighterState st = fighterController.StateMachine.CurrentState;
+                if (st == FighterState.Grab && fighterController.grabTarget != null)
+                {
+                    // 已抓住人 → 按抓取键 = 投掷（指定方向由当前摇杆方向决定）
+                    fighterController.TryAttack(fighterController.fighterData.jab1);  // 传什么无所谓，TryAttack 会拦截 grabTarget
+                }
+                else
+                {
+                    // 未抓人 → 尝试抓取
+                    fighterController.TryGrab();
+                }
+                GrabPressed = false;
             }
 
             // 防御（按住/松开）
@@ -243,33 +312,83 @@ namespace SuperSmashLike.InputSystem
         // 这里简化了 Smash 攻击的判定（需要同时按攻击+方向,
         // 实际大乱斗中推摇杆的力度决定是 Tilt 还是 Smash）
         // ================================================================
-        private AttackData GetContextualAttack()
+        //private AttackData GetContextualAttack()
+        //{
+        //    if (fighterController.fighterData == null) return null;
+
+        //    bool isInAir = fighterController.StateMachine.IsInAir();
+
+        //    // 空中攻击
+        //    if (isInAir)
+        //    {
+        //        if (MoveInput.y > 0.5f) return fighterController.fighterData.aerialUp;
+        //        if (MoveInput.y < -0.5f) return fighterController.fighterData.aerialDown;
+        //        if (Mathf.Abs(MoveInput.x) > 0.5f) return MoveInput.x > 0
+        //            ? fighterController.fighterData.aerialForward
+        //            : fighterController.fighterData.aerialBack;
+        //        return fighterController.fighterData.aerialNeutral;
+        //    }
+
+        //    // 地面攻击
+        //    if (Mathf.Abs(MoveInput.y) > 0.5f)
+        //        return MoveInput.y > 0
+        //            ? fighterController.fighterData.tiltUp
+        //            : fighterController.fighterData.tiltDown;
+
+        //    if (Mathf.Abs(MoveInput.x) > 0.5f)
+        //        return fighterController.fighterData.tiltSide;
+
+        //    return fighterController.fighterData.jab1;
+        //}
+
+        // 立即攻击：空中（四向+空N）/ 地面无方向（jab）—— 零延迟路径
+        // 空中方向判定必须用"当前 MoveInput"（空中没有判定窗，按下即出）
+        private AttackData GetImmediateAttack()
         {
             if (fighterController.fighterData == null) return null;
 
-            bool isInAir = fighterController.StateMachine.IsInAir();
-
-            // 空中攻击
-            if (isInAir)
+            // 空中攻击（方向决定招式）
+            if (fighterController.StateMachine.IsInAir())
             {
                 if (MoveInput.y > 0.5f) return fighterController.fighterData.aerialUp;
                 if (MoveInput.y < -0.5f) return fighterController.fighterData.aerialDown;
-                if (Mathf.Abs(MoveInput.x) > 0.5f) return MoveInput.x > 0
-                    ? fighterController.fighterData.aerialForward
-                    : fighterController.fighterData.aerialBack;
+                if (Mathf.Abs(MoveInput.x) > 0.5f)
+                    return MoveInput.x > 0
+                        ? fighterController.fighterData.aerialForward
+                        : fighterController.fighterData.aerialBack;
                 return fighterController.fighterData.aerialNeutral;
             }
 
-            // 地面攻击
-            if (Mathf.Abs(MoveInput.y) > 0.5f)
-                return MoveInput.y > 0
-                    ? fighterController.fighterData.tiltUp
-                    : fighterController.fighterData.tiltDown;
-
-            if (Mathf.Abs(MoveInput.x) > 0.5f)
-                return fighterController.fighterData.tiltSide;
-
+            // 地面无方向 → 轻击
             return fighterController.fighterData.jab1;
+        }
+
+        // 短按 → tilt（强攻击）
+        private AttackData GetTiltAttack(Vector2 dir)
+        {
+            if (Mathf.Abs(dir.y) > 0.5f)
+                return dir.y > 0 ? fighterController.fighterData.tiltUp
+                                 : fighterController.fighterData.tiltDown;
+            return fighterController.fighterData.tiltSide;   // 横向（前/后同招）
+        }
+
+        // 长按 → smash（蓄力基值）
+        private AttackData GetSmashAttack(Vector2 dir)
+        {
+            if (Mathf.Abs(dir.y) > 0.5f)
+                return dir.y > 0 ? fighterController.fighterData.smashUp
+                                 : fighterController.fighterData.smashDown;
+            return fighterController.fighterData.smashSide;
+        }
+
+        private AttackData GetContextualSpecial()
+        {
+            if (Mathf.Abs(MoveInput.y) > 0.5f)
+                return MoveInput.y > 0 ? fighterController.fighterData.specialUp
+                                       : fighterController.fighterData.specialDown;
+            if (Mathf.Abs(MoveInput.x) > 0.5f)
+                return fighterController.fighterData.specialSide;   // 前/后同一个
+            return fighterController.fighterData.specialNeutral;
         }
     }
 }

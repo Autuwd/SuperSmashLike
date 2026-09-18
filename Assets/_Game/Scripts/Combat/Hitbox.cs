@@ -43,8 +43,12 @@ namespace SuperSmashLike.Combat
         public void Activate()
         {
             IsActive = true;
+            if (owner != null) owner.hitboxActivatedThisAttack = true;
             if (hitCollider != null)
+            {
+                hitCollider.enabled = false;
                 hitCollider.enabled = true;
+            }
         }
 
         // 由 Animation Event 调用 → 关闭判定框

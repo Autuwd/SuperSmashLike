@@ -30,6 +30,9 @@ public class FrameMeter : MonoBehaviour
     [Header("Player")]
     public int playerIndex;              // 0 = P1, 1 = P2
 
+    [Header("Frame Rate")]
+    public int frameRate = 30;                                  // ★ 与剪辑采样率一致
+
     [Header("Layout")]
     public int totalCells = 60;
 
@@ -54,6 +57,8 @@ public class FrameMeter : MonoBehaviour
     // ---- 攻击计时（自记，不依赖 attackTimer）----
     private bool wasAttacking;
     private float attackStartTime;
+
+    private AttackData lastAtk;
 
     // ==================== 构建 UI（预设体驱动）====================
     private void Awake()
@@ -117,8 +122,26 @@ public class FrameMeter : MonoBehaviour
     {
         if (cells == null) return;
 
+        // ★ 按 playerID 精确匹配，不再用列表下标！
+        //   原因：ActivePlayers 的填充顺序 = FighterController.Start() 的注册顺序，
+        //   一旦场景层级顺序变化 / 重生重注册，下标就会错位 → P1 播 P2 的帧数。
+        //   playerID 是角色预制体上的固定值（Fighter_P1=0 / Fighter_P2=1），永远可靠。
+        FighterController f = null;
         var players = GameManager.Instance != null ? GameManager.Instance.ActivePlayers : null;
-        var f = players != null && playerIndex < players.Count ? players[playerIndex] : null;
+        if (players != null)
+        {
+            foreach (var p in players)
+            {
+                if (p != null && p.playerID == playerIndex)
+                {
+                    f = p;
+                    break;
+                }
+            }
+        }
+
+        if (debugLog) Debug.Log($"[FrameMeter P{playerIndex}] bound={f?.name} playerID={f?.playerID}");
+        
         UpdateMeter(f);
     }
 
@@ -129,8 +152,9 @@ public class FrameMeter : MonoBehaviour
             && f.attackData != null;
 
         // 记录攻击开始时间（边缘检测）
-        if (!wasAttacking && inAttack)
-            attackStartTime = Time.time;
+        if (!wasAttacking && inAttack) attackStartTime = Time.time;
+        if (inAttack && f.attackData != lastAtk) attackStartTime = Time.time;   // ★ 连段重新计时
+        lastAtk = inAttack ? f.attackData : null;
         wasAttacking = inAttack;
 
         if (debugLog && inAttack)
@@ -158,7 +182,7 @@ public class FrameMeter : MonoBehaviour
             int totalF = startF + actF + recF;
 
             // 当前帧 = (当前时间 - 攻击开始时间) × 60
-            int curFrame = Mathf.FloorToInt((Time.time - attackStartTime) * 60f);
+            int curFrame = Mathf.FloorToInt((Time.time - attackStartTime) * frameRate);
             curFrame = Mathf.Clamp(curFrame, 0, Mathf.Min(totalF, totalCells));
 
             // 涂色
@@ -196,10 +220,9 @@ public class FrameMeter : MonoBehaviour
             float y = segLabel[segIdx].rectTransform.anchoredPosition.y;
             segLabel[segIdx].rectTransform.anchoredPosition = new Vector2(x, y);
 
-            Debug.Log($"Seg{segIdx} end={end} x={x:F1} 格子中心应= {startX + (end - 0.5f) * cellWidth:F1}");
+            if (debugLog) Debug.Log($"Seg{segIdx} end={end} x={x:F1} 格子中心应= {startX + (end - 0.5f) * cellWidth:F1}");
         }
-
     }
 
-    private int ToF(float seconds) => Mathf.RoundToInt(seconds * 60f);
+    private int ToF(float seconds) => Mathf.RoundToInt(seconds * frameRate);
 }
