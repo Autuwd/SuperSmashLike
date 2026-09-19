@@ -1,4 +1,5 @@
 using UnityEngine;
+using SuperSmashLike.Core;
 
 // ============================================================
 // DamageSystem — 伤害/击飞计算系统（静态工具类）
