@@ -1,25 +1,38 @@
 using System.Reflection;
 using UnityEngine;
-using SuperSmashLike.Core;        // FighterData / AttackData ÔÚÕâ¸öÃüÃû¿Õ¼ä
+using SuperSmashLike.Core;        // FighterData / AttackData åœ¨è¿™ä¸ªå‘½åç©ºé—´
 
+// ============================================================
+// HitboxPreview â€” åˆ¤å®šæ¡†åœºæ™¯é¢„è§ˆï¼ˆæŒ‚åœ¨ AttackHitbox ä¸Šï¼Œå’Œ Hitbox åŒç‰©ä½“ï¼‰
+// èŒè´£ï¼š
+//   1. ç¼–è¾‘æ¨¡å¼ä¸‹æŒ‰ AttackData çš„çœŸå®å€¼ç”»å‡ºåˆ¤å®šæ¡†ï¼Œåšåˆ°æ‰€è§å³æ‰€å¾—
+//   2. æœªé…ç½®åˆ¤å®šæ¡†æ—¶ç”»çº¢ç‚¹æé†’
+// æ¶æ„ä½ç½®ï¼šCombat å±‚ï¼ˆä»…ç¼–è¾‘å™¨å¯è§†åŒ–ï¼Œè¿è¡Œæ—¶æ— è¡Œä¸ºï¼‰
+//
+// ã€æ³¨æ„ã€‘AttackData æ˜¯æ™®é€šå¯åºåˆ—åŒ–ç±»ï¼ˆä¸æ˜¯ ScriptableObjectï¼‰ï¼Œæ‹–ä¸äº†å¼•ç”¨ï¼Œ
+//   æ‰€ä»¥è¿™é‡Œæ‹–çš„æ˜¯ FighterData èµ„äº§ï¼Œå†ç”¨ã€å­—æ®µåã€‘é€‰å‡ºè¦é¢„è§ˆçš„æ‹›å¼ã€‚
+// ã€æ³¨æ„ã€‘ç»˜åˆ¶ç®—æ³•å¿…é¡»ä¸ HitboxEventRelay.Activate() ä¿æŒä¸€è‡´ï¼Œ
+//   å¦åˆ™"é¢„è§ˆçœ‹åˆ°çš„"å’Œ"å®é™…æ‰“åˆ°çš„"ä¼šå¯¹ä¸ä¸Šã€‚
+// ============================================================
 namespace SuperSmashLike.Combat
 {
-    // ¹ÒÔÚ AttackHitbox ÉÏ£¨ºÍ Hitbox Í¬Ò»¸öÎïÌå£©
-    // ×÷ÓÃ£º±à¼­Ä£Ê½ÏÂ°´ AttackData µÄÕæÊµÖµ»­ÅĞ¶¨¿ò£¬Ëù¼û¼´ËùµÃ
-    //
-    //AttackData ÊÇÆÕÍ¨¿ÉĞòÁĞ»¯Àà£¨²»ÊÇ ScriptableObject£©£¬ÍÏ²»ÁËÒıÓÃ£¬
-    //    ËùÒÔÕâÀïÍÏµÄÊÇ FighterData ×Ê²ú£¨ScriptableObject£¬¿ÉÒÔÍÏ£©£¬
-    //    ÔÙÓÃ×Ö¶ÎÃûÑ¡³öÒªÔ¤ÀÀµÄÕĞÊ½¡£
     public class HitboxPreview : MonoBehaviour
     {
-        [Tooltip("ÍÏÈë½ÇÉ«µÄ FighterData ×Ê²ú£¬ÀıÈç FD_Knight.asset")]
+        #region 1. Inspector é…ç½®
+
+        [Tooltip("æ‹–å…¥è§’è‰²çš„ FighterData èµ„äº§ï¼Œä¾‹å¦‚ FD_Knight.asset")]
         public FighterData data;
 
-        [Tooltip("ÒªÔ¤ÀÀµÄÕĞÊ½×Ö¶ÎÃû¡£¿ÉÑ¡£ºjab1 jab2 jab3 / tiltSide tiltUp tiltDown / " +
+        [Tooltip("è¦é¢„è§ˆçš„æ‹›å¼å­—æ®µåã€‚å¯é€‰ï¼šjab1 jab2 jab3 / tiltSide tiltUp tiltDown / " +
                  "smashSide smashUp smashDown / aerialNeutral aerialForward aerialBack aerialUp aerialDown / " +
                  "specialNeutral specialSide specialUp specialDown / throwForward throwBack throwUp throwDown")]
         public string attackField = "tiltUp";
 
+        #endregion
+
+        #region 2. è°ƒè¯•å¯è§†åŒ–
+
+        // ã€åšä»€ä¹ˆã€‘åœ¨ Scene è§†å›¾ç”»å‡ºå½“å‰æ‹›å¼é…ç½®çš„åˆ¤å®šæ¡†
         private void OnDrawGizmosSelected()
         {
             if (data == null) return;
@@ -29,7 +42,7 @@ namespace SuperSmashLike.Combat
 
             Vector3 origin = transform.parent != null ? transform.parent.position : transform.position;
 
-            // Ã»ÅäÅĞ¶¨¿ò ¡ú »­¸öºìµãÌáĞÑ
+            // æ²¡é…åˆ¤å®šæ¡† â†’ ç”»ä¸ªçº¢ç‚¹æé†’
             if (atk.hitboxSize == Vector2.zero)
             {
                 Gizmos.color = Color.red;
@@ -37,17 +50,25 @@ namespace SuperSmashLike.Combat
                 return;
             }
 
-            //ºÍ HitboxEventRelay.Activate() Í¬Ò»Ì×Ëã·¨£¬±£Ö¤Ëù¼û¼´ËùµÃ
+            // ä¸ HitboxEventRelay.Activate() åŒä¸€å¥—ç®—æ³•ï¼Œä¿è¯æ‰€è§å³æ‰€å¾—
             Vector3 center = origin + new Vector3(atk.hitboxOffset.x, atk.hitboxOffset.y, 0f);
             Gizmos.color = new Color(1f, 0.4f, 0f, 0.9f);
             Gizmos.DrawWireCube(center, new Vector3(atk.hitboxSize.x, atk.hitboxSize.y, 0.05f));
         }
 
-        // ÓÃ·´Éä°´×Ö¶ÎÃûÈ¡³ö AttackData£¨ÒòÎªÊÇÄÚÇ¶Àà£¬Ö»ÄÜÕâÑùÄÃ£©
+        #endregion
+
+        #region 3. ç§æœ‰å·¥å…·
+
+        // ã€åšä»€ä¹ˆã€‘ç”¨åå°„æŒ‰å­—æ®µåä» FighterData é‡Œå–å‡º AttackData
+        // ã€ä¸ºä»€ä¹ˆç”¨åå°„ã€‘AttackData æ˜¯å†…åµŒç±»ã€å­—æ®µåç”±é…ç½®å†³å®šï¼Œç¼–è¯‘æœŸæ‹¿ä¸åˆ°
+        // ã€è¿”å›ã€‘æ‰¾ä¸åˆ°å­—æ®µæˆ–ç±»å‹ä¸ç¬¦æ—¶è¿”å› null
         private static AttackData Find(FighterData d, string field)
         {
             var fi = typeof(FighterData).GetField(field, BindingFlags.Public | BindingFlags.Instance);
             return fi != null ? fi.GetValue(d) as AttackData : null;
         }
+
+        #endregion
     }
 }

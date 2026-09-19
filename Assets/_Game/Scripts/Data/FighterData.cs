@@ -10,49 +10,62 @@ using UnityEngine;
 //   右键 → Create → SuperSmashLike → Fighter Data
 //   创建后拖到 FighterController.fighterData 字段
 //
-// AttackData — 攻击动作数据（内嵌类）
-// 职责：
-//   存储单个攻击动作的所有参数（伤害、击飞、时间、特效）
-//   在 FighterData 中为每个攻击类型配置
+// 【重点】AttackData 是 class（引用类型），不是 struct！
+//   本资产里的 23 个 AttackData 槽位是"共享实例"，
+//   任何要改数值的地方（如蓄力加成）必须先 CloneAttackData 深拷贝，
+//   否则会永久污染本资产。
 // ============================================================
 namespace SuperSmashLike.Core
 {
     [CreateAssetMenu(menuName = "SuperSmashLike/Fighter Data", fileName = "FD_NewFighter")]
     public class FighterData : ScriptableObject
     {
+        #region 1. 身份
+
         [Header("Identity")]
         public string fighterName = "New Fighter";   // 角色显示名称
         public Sprite portraitIcon;                  // 角色头像（选人界面用）
 
+        #endregion
+
+        #region 2. 移动参数
+
         [Header("Movement")]
-        public float weight = 100f;          // 体重（越大越难被击飞）
+        public float weight = 100f;          // 体重（越大越难被击飞，参与击飞公式）
         public float walkSpeed = 5f;         // 地面行走速度
-        public float runSpeed = 8f;          // 地面冲刺速度
+        public float runSpeed = 8f;          // 地面冲刺速度（双击方向键触发）
         public float airSpeed = 6f;          // 空中水平速度
-        public float jumpForce = 12f;        // 跳跃力（初速度）
-        public float doubleJumpForce = 9f;   // 二段跳跃力
-        public int jumpCount = 2;            // 可跳跃次数（大乱斗通常2）
-        public int airDodgeCount = 1;        // 空中闪避次数
-        public float fallSpeed = 8f;         // 下落速度
-        public float fastFallSpeed = 15f;    // 速降速度
+        public float jumpForce = 12f;        // 一段跳初速度
+        public float doubleJumpForce = 9f;   // 二段跳初速度（当前未被使用，代码里是 jumpForce*0.85）
+        public int jumpCount = 2;            // 可跳跃次数（大乱斗通常 2）
+        public int airDodgeCount = 1;        // 空中闪避次数（空中闪避功能未实现）
+        public float fallSpeed = 8f;         // 下落速度上限
+        public float fastFallSpeed = 15f;    // 速降速度（Fall 中按住 ↓ 时使用）
+
+        #endregion
+
+        #region 3. 视觉
 
         [Header("Visual")]
-        public WeightClass weightClass = WeightClass.Medium;  // 体重分类（影响受击动画风格）
+        public WeightClass weightClass = WeightClass.Medium;  // 体重分类（当前仅 Editor 显示用）
         public Color uiColor = Color.white;                   // UI 主题色
 
-        // ==================== 攻击配置 ====================
-        //  大乱斗攻击体系：
-        //  地面: Jab(轻击3段) / Tilt(强攻击3方向) / Smash(蓄力攻击3方向)
-        //  空中: Neutral Air / Forward Air / Back Air / Up Air / Down Air
-        //  必杀技: Neutral B / Side B / Up B / Down B
-        //  抓投: Grab / Throw 4 Direction
+        #endregion
+
+        #region 4. 攻击配置
+
+        // 大乱斗攻击体系：
+        //   地面: Jab(轻击3段) / Tilt(强攻击3方向) / Smash(蓄力攻击3方向)
+        //   空中: Neutral / Forward / Back / Up / Down Air
+        //   必杀: Neutral / Side / Up / Down B
+        //   抓投: Grab / Throw 4 Direction
         [Header("Attack Data")]
         public AttackData jab1;              // 地面轻击第1段
         public AttackData jab2;              // 地面轻击第2段（连段）
         public AttackData jab3;              // 地面轻击第3段（终结）
         public AttackData tiltSide;          // 横强攻击
         public AttackData tiltUp;            // 上强攻击
-        public AttackData tiltDown;          // 下强攻击
+        public AttackData tiltDown;          // 下强攻击（地面时附带小跳）
         public AttackData smashSide;         // 横蓄力攻击
         public AttackData smashUp;           // 上蓄力攻击
         public AttackData smashDown;         // 下蓄力攻击
@@ -63,64 +76,106 @@ namespace SuperSmashLike.Core
         public AttackData aerialDown;        // 空中下向攻击（空下）
         public AttackData specialNeutral;    // 必杀技（不推方向）
         public AttackData specialSide;       // 横必杀技
-        public AttackData specialUp;         // 上必杀技（通常带上升）
+        public AttackData specialUp;         // 上必杀技
         public AttackData specialDown;       // 下必杀技
         public AttackData grab;              // 抓取
         public AttackData throwForward;      // 前投
         public AttackData throwBack;         // 后投
         public AttackData throwUp;           // 上投
         public AttackData throwDown;         // 下投
+
+        #endregion
     }
 
-    // 体重分类（影响受击动画和特效）
+    // 体重分类（当前只用于 Editor 显示，未参与逻辑）
     public enum WeightClass
     {
-        Light,       // 轻量级（被击飞更远）
+        Light,       // 轻量级
         Medium,      // 中量级
         Heavy,       // 重量级
-        SuperHeavy,  // 超重量级（几乎打不动）
+        SuperHeavy,  // 超重量级
     }
 
-    // [System.Serializable] 使 AttackData 可以在 Inspector 中展开编辑
+    // ============================================================
+    // AttackData — 单个攻击动作的数据（内嵌可序列化类）
+    // 职责：存储一次攻击的全部参数（伤害/击飞/时间/特效/判定框）
+    // 【重点】是 class（引用类型），改数值前必须深拷贝（见 FighterController.CloneAttackData）
+    // 【注意】新增字段时，FighterController.CloneAttackData 必须同步补充，否则克隆会丢字段
+    // ============================================================
     [System.Serializable]
     public class AttackData
     {
+        #region 动画
+
         [Header("Animation")]
-        public int animIndex;                 // 动画索引（FighterController 用于播放动画）
+        public int animIndex;                 // 动画索引 → 写进 Animator 的 AttackType 参数
+
+        #endregion
+
+        #region 伤害
 
         [Header("Damage")]
-        public string attackName = "Attack";  // 攻击名称
+        public string attackName = "Attack";  // 攻击名称（根运动白名单按它匹配）
         public float damage = 5f;             // 伤害值（百分比）
         public float shieldDamage = 3f;       // 对护盾的伤害
+
+        #endregion
+
+        #region 击飞
 
         [Header("Knockback")]
         public float knockbackAngle = 45f;     // 击飞角度（0=水平, 90=垂直）
         public float knockbackBase = 30f;      // 基础击飞值
         public float knockbackGrowth = 50f;    // 击飞成长率（伤害越高影响越大）
-        public float hitstunOverride = -1f;
+        public float hitstunOverride = -1f;    // 手动指定硬直秒数（<0 = 按公式算）
+
+        #endregion
+
+        #region 时间（秒）
 
         [Header("Timing (seconds)")]
-        public float startupTime = 0.1f;       // 前摇时间（按键到判定出现）
+        public float startupTime = 0.1f;       // 前摇（按键到判定出现）
         public float activeTime = 0.1f;        // 判定持续时间
-        public float recoveryTime = 0.2f;      // 后摇时间（判定结束到可行动）
+        public float recoveryTime = 0.2f;      // 后摇（判定结束到可行动）
+
+        #endregion
+
+        #region 打击感
 
         [Header("Hitstop")]
-        public float hitstopDuration = 0.05f;  // 命中时的时间暂停时长
+        public float hitstopDuration = 0.05f;  // 命中时的时间暂停时长（× GameSettings.hitstopScale）
+
+        #endregion
+
+        #region 取消窗口（当前未实现）
 
         [Header("Cancel")]
-        public string[] cancelIntoAttacks;     // 可取消进入的下一个攻击（连段用）
+        // 【注意】以下三个字段当前【没有任何逻辑读取】——
+        //   只在 FighterController.CloneAttackData 里被复制。
+        //   取消窗口系统（连段取消/跳跃取消/必杀取消）尚未实现。
+        public string[] cancelIntoAttacks;     // 可取消进入的下一个攻击
         public bool canJumpCancel;             // 是否可跳跃取消
         public bool canSpecialCancel;          // 是否可必杀技取消
 
+        #endregion
+
+        #region 表现
+
         [Header("Visual")]
         public GameObject hitEffectPrefab;     // 命中特效预制体
-        public AudioClip hitSound;             // 命中音效
+        public AudioClip hitSound;             // 命中音效（尚未接入）
+
+        #endregion
+
+        #region 判定框
 
         [Header("Hitbox")]
-        public Vector2 hitboxOffset;   // 判定框偏移（x 按朝向翻转）
-        public Vector2 hitboxSize;     // 判定框大小
+        public Vector2 hitboxOffset;   // 判定框偏移（x 会按朝向翻转）
+        public Vector2 hitboxSize;     // 判定框大小（为 0 时攻击无判定，工具会告警）
 
-        // 总持续时间（前摇+判定+后摇）
+        #endregion
+
+        // 总持续时间（前摇 + 判定 + 后摇）
         public float TotalDuration => startupTime + activeTime + recoveryTime;
     }
 }

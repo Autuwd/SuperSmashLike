@@ -2,66 +2,91 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // ============================================================
-// InputBuffer ¡ª Ö¡ºÅÊäÈë»º³å£¨2026-08-19£©
-// Ö°Ôğ£ºÔİ´æÍæ¼Ò°´¼üÒâÍ¼£¬¹©×´Ì¬»úÔÚ"ÔÊĞíÏû·ÑµÄÊ±»ú"¶ÁÈ¡¡£
-// ÎªÊ²Ã´ÓÃ"Ö¡ºÅ¶ÓÁĞ"¶ø²»ÊÇ²¼¶û±êÖ¾£¿
-//   1. ²¼¶ûÖ»ÓĞ"ÓĞÃ»ÓĞ°´"£»¶ÓÁĞÄÜ¼Ç×¡"ÄÄÒ»Ö¡°´µÄ" ¡ú ¿ÉÅĞ¶Ï¹ıÆÚ
-//   2. Ö¡ºÅ = Ö¡Í¬²½Áª»úµÄÖØ·ÅÃªµã£¨½ñÈÕÕı¿ÎÀíÂÛÂäµØ£¡£©
-//      ¶ÔÕÕ FPS ¼Ü¹¹£ºinputHistory ´æ TickInput{tick,...}£¬Õâ¾ÍÊÇ±¾µØ°æ
-// ÓÃ·¨£º
-//   inputBuffer.BufferAttack();        // °´¼üÊ±¼ÇÒ»±Ê£¨ÎŞÂÛÄÜ·ñÖ´ĞĞ£©
-//   if (inputBuffer.ConsumeAttack()) ¡­ // ×´Ì¬»ú´°¿ÚÄÚÏû·Ñ
+// InputBuffer â€” å¸§å·è¾“å…¥ç¼“å†²ï¼ˆçº¯ C# ç±»ï¼Œé MonoBehaviourï¼‰
+// èŒè´£ï¼šæš‚å­˜ç©å®¶æŒ‰é”®æ„å›¾ï¼Œä¾›çŠ¶æ€æœºåœ¨"å…è®¸æ¶ˆè´¹çš„æ—¶æœº"è¯»å–
+// æ¶æ„ä½ç½®ï¼šInput å±‚ï¼Œè¢« FighterController æŒæœ‰ï¼ˆä½œä¸ºå­—æ®µå®ä¾‹ï¼‰
+//
+// ä¸ºä»€ä¹ˆç”¨"å¸§å·é˜Ÿåˆ—"è€Œä¸æ˜¯å¸ƒå°”æ ‡å¿—ï¼Ÿ
+//   1. å¸ƒå°”åªæœ‰"æœ‰æ²¡æœ‰æŒ‰"ï¼›é˜Ÿåˆ—èƒ½è®°ä½"å“ªä¸€å¸§æŒ‰çš„" â†’ å¯åˆ¤æ–­è¿‡æœŸ
+//   2. å¸§å· = å¸§åŒæ­¥è”æœºçš„é‡æ”¾é”šç‚¹ï¼ˆå¯¹ç…§ FPS æ¶æ„çš„ inputHistory{TickInput}ï¼Œ
+//      è¿™å°±æ˜¯æœ¬åœ°ç‰ˆå®ç°ï¼‰
+//
+// ç”¨æ³•ï¼š
+//   inputBuffer.BufferAttack();         // æŒ‰é”®æ—¶è®°ä¸€ç¬”ï¼ˆæ— è®ºå½“å‰èƒ½å¦æ‰§è¡Œï¼‰
+//   if (inputBuffer.ConsumeAttack()) â€¦  // çŠ¶æ€æœºçª—å£å†…æ¶ˆè´¹
 // ============================================================
 namespace SuperSmashLike.InputSystem
 {
     public class InputBuffer
     {
-        private readonly Queue<int> _attackFrames = new();  // ¹¥»÷ÒâÍ¼µÄÖ¡ºÅ¶ÓÁĞ
-        private readonly int _windowFrames;                 // ÓĞĞ§´°¿Ú£¨Ö¡£©³¬Ö¡¹ıÆÚ
-        private readonly int _capacity;                     // ¶ÓÁĞÈİÁ¿
-        private int _lastAttackFrame = -1;                  // Í¬Ò»Ö¡È¥ÖØ
+        #region 1. è¿è¡Œæ—¶çŠ¶æ€
 
+        private readonly Queue<int> _attackFrames = new();  // æ”»å‡»æ„å›¾çš„å¸§å·é˜Ÿåˆ—
+        private readonly int _windowFrames;                 // æœ‰æ•ˆçª—å£ï¼ˆå¸§ï¼‰ï¼šè¶…å¸§è¿‡æœŸ
+        private readonly int _capacity;                     // é˜Ÿåˆ—å®¹é‡ä¸Šé™
+        private int _lastAttackFrame = -1;                  // åŒä¸€å¸§å»é‡
+
+        #endregion
+
+        #region 2. æ„é€ 
+
+        // ã€å‚æ•°ã€‘windowFrames = æ„å›¾æœ‰æ•ˆæœŸï¼ˆå¸§ï¼‰ï¼›capacity = é˜Ÿåˆ—å®¹é‡ä¸Šé™
         public InputBuffer(int windowFrames = 5, int capacity = 10)
         {
             _windowFrames = windowFrames;
             _capacity = capacity;
         }
 
-        /// <summary>¼ÇÂ¼Ò»´Î¹¥»÷ÒâÍ¼£¨Í¬Ò»Ö¡¶à´Î°´¼üÖ»¼ÇÒ»´Î£©</summary>
+        #endregion
+
+        #region 3. å…¬å¼€ API
+
+        // ã€åšä»€ä¹ˆã€‘è®°å½•ä¸€æ¬¡æ”»å‡»æ„å›¾ï¼ˆåŒä¸€å¸§å¤šæ¬¡æŒ‰é”®åªè®°ä¸€æ¬¡ï¼‰
         public void BufferAttack()
         {
             int now = Time.frameCount;
-            if (now == _lastAttackFrame) return;   // Í¬Ò»Ö¡È¥ÖØ
+            if (now == _lastAttackFrame) return;   // åŒä¸€å¸§å»é‡
+
             _lastAttackFrame = now;
             _attackFrames.Enqueue(now);
             Trim();
         }
 
-        /// <summary>Ïû·Ñ¹¥»÷ÒâÍ¼£º¶ÓÊ×¹ıÆÚÔò¶ªÆú£¬µÚÒ»¸ö´°¿ÚÄÚµÄ·µ»Ø true</summary>
+        // ã€åšä»€ä¹ˆã€‘æ¶ˆè´¹æ”»å‡»æ„å›¾ï¼šé˜Ÿé¦–è¿‡æœŸåˆ™ä¸¢å¼ƒï¼Œç¬¬ä¸€ä¸ªçª—å£å†…çš„è¿”å› true
+        // ã€è¿”å›ã€‘true = æ¶ˆè´¹æˆåŠŸï¼ˆè°ƒç”¨æ–¹å¯ä»¥æ‰§è¡Œæ”»å‡»ï¼‰
+        // ã€æ³¨æ„ã€‘é˜Ÿé¦–å¿…ç„¶æ˜¯æœ€æ—©çš„è¾“å…¥ï¼Œæ‰€ä»¥åªè¦é˜Ÿé¦–æ²¡è¿‡æœŸï¼Œåé¢çš„éƒ½æœ‰æ•ˆ
         public bool ConsumeAttack()
         {
             while (_attackFrames.Count > 0)
             {
                 int frame = _attackFrames.Dequeue();
                 if (Time.frameCount - frame <= _windowFrames)
-                    return true;    // ´°¿ÚÄÚ ¡ú Ïû·Ñ³É¹¦
-                // ¹ıÆÚÊäÈë ¡ú ¶ªÆú£¨¶ÓÊ××îÔç£¬±Ø×îÏÈ¹ıÆÚ£©
+                    return true;    // çª—å£å†… â†’ æ¶ˆè´¹æˆåŠŸ
+                // è¿‡æœŸè¾“å…¥ â†’ ä¸¢å¼ƒï¼ˆé˜Ÿé¦–æœ€æ—©ï¼Œå¿…æœ€å…ˆè¿‡æœŸï¼‰
             }
             return false;
         }
 
-        /// <summary>Çå¿ÕÈ«²¿»º³å£¨ÆğÊÖ¹¥»÷/ÊÜ»÷´ò¶ÏÊ±µ÷ÓÃ£©</summary>
+        // ã€åšä»€ä¹ˆã€‘æ¸…ç©ºå…¨éƒ¨ç¼“å†²ï¼ˆèµ·æ‰‹æ”»å‡» / å—å‡»æ‰“æ–­æ—¶è°ƒç”¨ï¼‰
         public void Clear()
         {
             _attackFrames.Clear();
         }
 
+        // å½“å‰ç¼“å†²ä¸­çš„æ„å›¾æ•°é‡ï¼ˆè°ƒè¯•/æ‰©å±•ç”¨ï¼Œæš‚æ— è°ƒç”¨æ–¹ï¼‰
         public int Count => _attackFrames.Count;
 
+        #endregion
+
+        #region 4. ç§æœ‰é€»è¾‘
+
+        // ã€åšä»€ä¹ˆã€‘æŠŠé˜Ÿåˆ—è£åˆ°å®¹é‡ä¸Šé™ï¼ˆä¸¢æœ€è€çš„ï¼‰
         private void Trim()
         {
             while (_attackFrames.Count > _capacity)
                 _attackFrames.Dequeue();
         }
+
+        #endregion
     }
 }

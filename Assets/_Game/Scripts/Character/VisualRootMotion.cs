@@ -2,22 +2,35 @@ using SuperSmashLike.Core;
 using UnityEngine;
 
 // ============================================================
-// VisualRootMotion
-// ¡ï ±ØĞë¹ÒÔÚ¡¾ºÍ Animator Í¬Ò»¸ö GameObject¡¿ÉÏ£¨Ò²¾ÍÊÇ Visual£©£¡
-//   Unity Ö»ÔÚ Animator ËùÔÚµÄ GameObject ÉÏµ÷ÓÃ OnAnimatorMove£¬
-//   ¹ÒÔÚ FighterController£¨¸ù½Úµã£©ÉÏ²»»áÉúĞ§¡£
+// VisualRootMotion â€” æ ¹è¿åŠ¨æ¥ç®¡
+// èŒè´£ï¼š
+//   1. é»˜è®¤ä¸¢å¼ƒå…¨éƒ¨æ ¹è¿åŠ¨ï¼ˆä¸ä½ç§»ã€ä¸æ—‹è½¬ï¼‰â†’ è§£å†³æŠ“å–æ—‹è½¬ + æ”»å‡»æ¼‚ç§»
+//   2. åªå¯¹ keepVerticalFor ç™½åå•é‡Œçš„æ‹›å¼æ”¾è¡Œ"å‚ç›´"åˆ†é‡ â†’ ä¿ç•™è·³è·ƒä¸‹åŠˆçš„èµ·ä¼
+// æ¶æ„ä½ç½®ï¼šCharacter å±‚ï¼ŒæŒ‚åœ¨ Visualï¼ˆAnimator æ‰€åœ¨ç‰©ä½“ï¼‰ä¸Š
+// ä¾èµ–ï¼šFighterControllerï¼ˆè¯» isAttacking / attackDataï¼‰
 //
-// ×÷ÓÃ£º½Ó¹Ü¸ùÔË¶¯ ¡ª¡ª
-//   Ä¬ÈÏÈ«²¿¶ªÆú£¨²»Î»ÒÆ¡¢²»Ğı×ª£©¡ú ½â¾ö×¥È¡Ğı×ª + ¹¥»÷Æ¯ÒÆ
-//   Ö»¶ÔÖ¸¶¨ÕĞÊ½·ÅĞĞ"´¹Ö±"·ÖÁ¿ ¡ú ±£ÁôÌøÔ¾ÏÂÅüµÄÆğ·ü
+// ã€é‡ç‚¹ã€‘å¿…é¡»æŒ‚åœ¨ã€å’Œ Animator åŒä¸€ä¸ª GameObjectã€‘ä¸Šï¼ˆä¹Ÿå°±æ˜¯ Visualï¼‰ï¼
+//   Unity åªåœ¨ Animator æ‰€åœ¨çš„ GameObject ä¸Šè°ƒç”¨ OnAnimatorMoveï¼Œ
+//   æŒ‚åœ¨ FighterControllerï¼ˆæ ¹èŠ‚ç‚¹ï¼‰ä¸Šä¸ä¼šç”Ÿæ•ˆã€‚
+// ã€æ³¨æ„ã€‘æœ¬ç±»æœªå£°æ˜å‘½åç©ºé—´ï¼ˆå†å²é—ç•™ï¼‰ï¼Œä¸å…¶ä»–è„šæœ¬ä¸ä¸€è‡´ã€‚
 // ============================================================
 public class VisualRootMotion : MonoBehaviour
 {
-    [Tooltip("ĞèÒª±£Áô¸ùÔË¶¯´¹Ö±Î»ÒÆµÄÕĞÊ½Ãû£¨¶ÔÓ¦ AttackData.attackName£©")]
+    #region 1. Inspector é…ç½®
+
+    [Tooltip("éœ€è¦ä¿ç•™æ ¹è¿åŠ¨å‚ç›´ä½ç§»çš„æ‹›å¼åï¼ˆå¯¹åº” AttackData.attackNameï¼‰")]
     public string[] keepVerticalFor = { "TiltDown" };
+
+    #endregion
+
+    #region 2. è¿è¡Œæ—¶çŠ¶æ€
 
     private Animator animator;
     private FighterController owner;
+
+    #endregion
+
+    #region 3. Unity ç”Ÿå‘½å‘¨æœŸ
 
     private void Awake()
     {
@@ -25,29 +38,30 @@ public class VisualRootMotion : MonoBehaviour
         owner = GetComponentInParent<FighterController>();
     }
 
-    // Unity Ö»ÔÚ Animator ËùÔÚµÄ GameObject ÉÏµ÷ÓÃÕâ¸ö»Øµ÷
+    // ã€åšä»€ä¹ˆã€‘æ ¹è¿åŠ¨å›è°ƒ â€”â€” é»˜è®¤ä»€ä¹ˆéƒ½ä¸åš = æ ¹è¿åŠ¨è¢«å®Œå…¨ä¸¢å¼ƒ
+    // ã€æ³¨æ„ã€‘Unity åªåœ¨ Animator æ‰€åœ¨ç‰©ä½“ä¸Šè°ƒç”¨æ­¤å›è°ƒ
     private void OnAnimatorMove()
     {
-        // ¡ï Ä¬ÈÏÊ²Ã´¶¼²»×ö = ¸ùÔË¶¯±»ÍêÈ«¶ªÆú£¨²»Æ¯ÒÆ¡¢²»Ğı×ª£©
         if (animator == null || owner == null) return;
         if (!owner.isAttacking || owner.attackData == null) return;
 
         foreach (var n in keepVerticalFor)
         {
-            if (owner.attackData.attackName == n)
-            {
-                // Ö»È¡´¹Ö±·ÖÁ¿£¨ÏÂÅüµÄÆğ·ü£©£»Ë®Æ½/×İÉî¶ªÆú
-                Vector3 d = animator.deltaPosition;
-                transform.localPosition += new Vector3(0f, d.y, 0f);
-                return;
-            }
+            if (owner.attackData.attackName != n) continue;
+
+            // åªå–å‚ç›´åˆ†é‡ï¼ˆä¸‹åŠˆçš„èµ·ä¼ï¼‰ï¼›æ°´å¹³/çºµæ·±ä¸€å¾‹ä¸¢å¼ƒ
+            Vector3 d = animator.deltaPosition;
+            transform.localPosition += new Vector3(0f, d.y, 0f);
+            return;
         }
     }
 
-    // ·Ç¹¥»÷Ê±°ÑÎ»ÒÆÆ½»¬¹éÁã£¨·ÀÖ¹ÀÛ»ı£©
+    // ã€åšä»€ä¹ˆã€‘éæ”»å‡»çŠ¶æ€æŠŠä½ç§»å¹³æ»‘å½’é›¶ï¼Œé˜²æ­¢æ ¹è¿åŠ¨æ®‹ç•™ç´¯ç§¯
     private void LateUpdate()
     {
         if (owner != null && !owner.isAttacking)
             transform.localPosition = Vector3.Lerp(transform.localPosition, Vector3.zero, 12f * Time.deltaTime);
     }
+
+    #endregion
 }

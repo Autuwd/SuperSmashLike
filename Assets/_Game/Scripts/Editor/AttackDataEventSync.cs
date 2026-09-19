@@ -33,6 +33,8 @@ namespace SuperSmashLike.EditorTools
 {
     public static class AttackDataEventSync
     {
+        #region 1. 配置
+
         // ---- 配置区 ----
         private const string ControllerPath = "Assets/_Game/Animations/Animator/FighterAnimator.controller";
         private const string AttackTypeParam = "AttackType";
@@ -45,6 +47,10 @@ namespace SuperSmashLike.EditorTools
         // grab 的 animIndex 也是 0，和 jab1 撞号；且抓取是代码驱动（OverlapCircleAll），
         // 不走 AttackType，所以必须排除，否则会被 Jab1 的时序覆盖。
         private static readonly HashSet<string> SkipFields = new HashSet<string> { "grab" };
+
+        #endregion
+
+        #region 2. 菜单入口
 
         // ==================== 菜单入口 ====================
 
@@ -83,6 +89,10 @@ namespace SuperSmashLike.EditorTools
             }
             Debug.Log($"[AttackDataEventSync] 全部角色同步完成，共更新 {total} 条。");
         }
+
+        #endregion
+
+        #region 3. 对外 API（供自定义 Inspector 调用）
 
         // ==================== 对外 API（供自定义 Inspector 调用）====================
 
@@ -202,6 +212,10 @@ namespace SuperSmashLike.EditorTools
 
         // ==================== 内部实现 ====================
 
+        #endregion
+
+        #region 4. 私有工具
+
         private static List<FighterData> PickSelected()
         {
             var list = Selection.objects.OfType<FighterData>().ToList();
@@ -286,6 +300,8 @@ namespace SuperSmashLike.EditorTools
             r = Mathf.Max(0f, tFin - tDeact);
             return true;
         }
+
+        #endregion
     }
 }
 #endif

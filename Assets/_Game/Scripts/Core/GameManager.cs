@@ -35,6 +35,7 @@ namespace SuperSmashLike.Core
         public GameObject fighterPrefab;    // 斗士角色的预制体模板
 
         [Header("Debug")]
+        public DebugSettings debugSettings;   // 调试开关配置资产（拖入 DS_Debug.asset）
         public bool skipToBattle;           // 调试用：勾选后跳过菜单直接进入战斗
 
         // 当前游戏阶段，其他模块通过这个属性来判断能做什么
@@ -57,6 +58,10 @@ namespace SuperSmashLike.Core
 
         private void Awake()
         {
+            // 【必须先做】注入调试配置 —— 其他模块在 Start/Update 里会用到
+            // 若未拖入资产，SmashDebug 会视为"全部通道关闭"，只保留 LogError
+            SmashDebug.Settings = debugSettings;
+
             // 单例初始化：如果已有实例则销毁自己
             if (Instance != null && Instance != this)
             {
@@ -81,7 +86,9 @@ namespace SuperSmashLike.Core
         {
             CurrentGameState = newState;
             OnGameStateChanged?.Invoke(newState);
-            Debug.Log($"[GameManager] State: {newState}");
+
+            if (SmashDebug.IsOn(DebugChannel.Match))
+                SmashDebug.Log(DebugChannel.Match, $"GameManager 状态 → {newState}");
         }
 
         public void StartMatch()

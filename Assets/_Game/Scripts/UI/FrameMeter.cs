@@ -5,62 +5,68 @@ using SuperSmashLike.Combat;
 using SuperSmashLike.Core;
 
 // ============================================================
-// FrameMeter - 帧数表（M1-D2 预设体驱动 v4）
+// FrameMeter — 帧数表（预设体驱动 v4）
 // 职责：显示指定玩家的攻击三段（黄/红/蓝）+ 段末帧数 + 游标 + 信息文本
+// 架构位置：UI 层
+// 依赖：GameManager（按 playerID 找斗士）、DamageSystem（算硬直差）、FighterController（读攻击数据）
 //
-// ★ 预设体驱动：UI 结构（60 格子/段末标签/游标/Info）由预设体提供，
-//   不再由代码创建。生成方式：菜单 Tools → FrameMeter → Create Prefab
-//   → Assets/_Game/Prefabs/UI/FrameMeter.prefab，然后可直接在 Inspector
-//   调整每个元素的表现（颜色/字号/位置/大小）。
+// 预设体驱动：UI 结构（60 格子 / 段末标签 / 游标 / Info）由预设体提供，不由代码创建。
+//   生成方式：菜单 Tools → FrameMeter → Create Prefab
+//   → Assets/_Game/Prefabs/UI/FrameMeter.prefab，之后可直接在 Inspector 调整表现。
 //
-// 预设体子物体命名规约（代码按名字 Find，改不了）：
-//   Cell0..Cell59  - 60 个格子（Image）
-//   Seg0..Seg2     - 段末数字标签（TextMeshProUGUI，游标上方）
-//   Cursor         - 白色游标竖线（Image）
-//   Info           - 信息文本（TextMeshProUGUI，条上方）
+// 预设体子物体命名规约（代码按名字 Find，改名会失效）：
+//   Cells/Cell0..Cell59  - 60 个格子（Image）
+//   Seg0..Seg2           - 段末数字标签（TextMeshProUGUI）
+//   Cursor               - 白色游标竖线（Image）
+//   Info                 - 信息文本（TextMeshProUGUI）
 //
-// Inspector 可调参数：
-//   playerIndex  - 对应 GameManager.ActivePlayers 的索引
-//   totalCells   - 格子数量（须与预设体里的实际格子数一致！）
-//   cStartup/cActive/cRecovery/cEmpty - 颜色
-//   debugLog     - 打印每帧状态
+// 【注意】本类未声明命名空间（历史遗留），与其他脚本不一致。
 // ============================================================
 public class FrameMeter : MonoBehaviour
 {
+    #region 1. Inspector 配置
+
     [Header("Player")]
-    public int playerIndex;              // 0 = P1, 1 = P2
+    public int playerIndex;              // 0 = P1, 1 = P2（按 playerID 匹配，不是列表下标）
 
     [Header("Frame Rate")]
-    public int frameRate = 30;                                  // ★ 与剪辑采样率一致
+    public int frameRate = 30;           // 与动画剪辑采样率一致
 
     [Header("Layout")]
-    public int totalCells = 60;
+    public int totalCells = 60;          // 格子数量（必须与预设体里的实际格子数一致）
 
     [Header("Colors")]
     public Color cStartup = new(1f, 0.85f, 0.2f);    // 起手帧（黄）
-    public Color cActive = new(1f, 0.35f, 0.25f);    // 红·判定
-    public Color cRecovery = new(0.3f, 0.6f, 1f);    // 蓝色收招
+    public Color cActive = new(1f, 0.35f, 0.25f);    // 判定帧（红）
+    public Color cRecovery = new(0.3f, 0.6f, 1f);    // 收招帧（蓝）
     public Color cEmpty = new(1f, 1f, 1f, 0.08f);    // 空白格
 
-    [Header("Debug")]
-    public bool debugLog;                // 勾上 → Console 打印每帧状态
+    #endregion
+
+    #region 2. 运行时状态
 
     // ---- 预设体引用（Awake 里 Find 填充）----
     private Image[] cells;
     private RectTransform cursor;
     private TextMeshProUGUI infoText;
     private TextMeshProUGUI[] segLabel = new TextMeshProUGUI[3];
+
+    // ---- 布局参数（Awake 按预设体实际尺寸推算）----
     private float startX;
     private float cellWidth;
     private float barHeight;
 
-    // ---- 攻击计时（自记，不依赖 attackTimer）----
+    // ---- 攻击计时（自记，不依赖 FighterController.attackTimer）----
     private bool wasAttacking;
     private float attackStartTime;
-
     private AttackData lastAtk;
 
-    // ==================== 构建 UI（预设体驱动）====================
+    #endregion
+
+    #region 3. Unity 生命周期
+
+    // 【做什么】按命名规约从预设体取引用，并按实际尺寸重排格子
+    // 【注意】任何子物体缺失都会把 cells 置 null，后续 Update 直接早退（不刷屏报错）
     private void Awake()
     {
         if (GetComponent<RectTransform>() == null)
@@ -96,7 +102,7 @@ public class FrameMeter : MonoBehaviour
             return;
         }
 
-        // 布局参数：从预设体实际布局推算（与生成器一致）
+        // 布局参数：从预设体实际布局推算（与生成器保持一致）
         var rt = GetComponent<RectTransform>();
         float myW = rt.rect.width;
         float myH = rt.rect.height;
@@ -108,23 +114,23 @@ public class FrameMeter : MonoBehaviour
         for (int i = 0; i < totalCells; i++)
         {
             var crt = cells[i].rectTransform;
-            crt.sizeDelta = new Vector2(cellWidth - 1f, barHeight);              // 宽高跟着新参数走
-            crt.anchoredPosition = new Vector2(
-                startX + i * cellWidth + cellWidth * 0.5f, 0f);                  // 位置按新宽度重排
+            crt.sizeDelta = new Vector2(cellWidth - 1f, barHeight);
+            crt.anchoredPosition = new Vector2(startX + i * cellWidth + cellWidth * 0.5f, 0f);
         }
 
-        if (debugLog)
-            Debug.Log($"[FrameMeter P{playerIndex}] bound: cells={totalCells} cellW={cellWidth:F1} barH={barHeight:F1}");
+        if (SmashDebug.IsOn(DebugChannel.UI))
+            SmashDebug.Log(DebugChannel.UI,
+                $"[FrameMeter P{playerIndex}] bound: cells={totalCells} cellW={cellWidth:F1} barH={barHeight:F1}");
     }
 
-    // ==================== 每帧更新 ====================
+    // 【做什么】每帧找目标斗士并刷新显示
     private void LateUpdate()
     {
         if (cells == null) return;
 
-        // ★ 按 playerID 精确匹配，不再用列表下标！
-        //   原因：ActivePlayers 的填充顺序 = FighterController.Start() 的注册顺序，
-        //   一旦场景层级顺序变化 / 重生重注册，下标就会错位 → P1 播 P2 的帧数。
+        // 按 playerID 精确匹配，不用列表下标！
+        // 原因：ActivePlayers 的填充顺序 = FighterController.Start() 的注册顺序，
+        //   一旦场景层级顺序变化 / 重生重注册，下标就会错位 → P1 显示 P2 的帧数。
         //   playerID 是角色预制体上的固定值（Fighter_P1=0 / Fighter_P2=1），永远可靠。
         FighterController f = null;
         var players = GameManager.Instance != null ? GameManager.Instance.ActivePlayers : null;
@@ -132,41 +138,39 @@ public class FrameMeter : MonoBehaviour
         {
             foreach (var p in players)
             {
-                if (p != null && p.playerID == playerIndex)
-                {
-                    f = p;
-                    break;
-                }
+                if (p != null && p.playerID == playerIndex) { f = p; break; }
             }
         }
 
-        if (debugLog) Debug.Log($"[FrameMeter P{playerIndex}] bound={f?.name} playerID={f?.playerID}");
-        
         UpdateMeter(f);
     }
 
+    #endregion
+
+    #region 4. 核心刷新逻辑
+
+    // 【做什么】按当前攻击数据刷新格子颜色 / 段末帧数 / 游标 / 信息文本
     private void UpdateMeter(FighterController f)
     {
         bool inAttack = f != null
             && f.StateMachine.CurrentState == FighterState.Attack
             && f.attackData != null;
 
-        // 记录攻击开始时间（边缘检测）
+        // 攻击计时用"边缘检测 + 连段重新计时"自记，不依赖 FighterController 的字段
         if (!wasAttacking && inAttack) attackStartTime = Time.time;
-        if (inAttack && f.attackData != lastAtk) attackStartTime = Time.time;   // ★ 连段重新计时
+        if (inAttack && f.attackData != lastAtk) attackStartTime = Time.time;   // 连段 → 重新计时
         lastAtk = inAttack ? f.attackData : null;
         wasAttacking = inAttack;
 
-        if (debugLog && inAttack)
-            Debug.Log($"[FrameMeter P{playerIndex}] inAttack=true atk={f.attackData.attackName}");
-
-        // 清空
+        // ===== 清空上一帧 =====
         for (int i = 0; i < totalCells; i++)
             cells[i].color = cEmpty;
+
         for (int s = 0; s < 3; s++)
         {
             segLabel[s].text = "";
-            // 只藏 x（-1000 移出屏幕），y 保留预设体里摆好的位置，不然 PaintSeg 会读到被改乱的 y
+            // 只藏 x（-1000 移出屏幕），y 保留预设体里摆好的位置，
+            // 否则 PaintSeg 会读到被改乱的 y（历史踩坑）
             float keepY = segLabel[s].rectTransform.anchoredPosition.y;
             segLabel[s].rectTransform.anchoredPosition = new Vector2(-1000f, keepY);
         }
@@ -181,16 +185,16 @@ public class FrameMeter : MonoBehaviour
             int recF = ToF(atk.recoveryTime);
             int totalF = startF + actF + recF;
 
-            // 当前帧 = (当前时间 - 攻击开始时间) × 60
+            // 当前帧 =（当前时间 - 攻击开始时间）× 帧率
             int curFrame = Mathf.FloorToInt((Time.time - attackStartTime) * frameRate);
             curFrame = Mathf.Clamp(curFrame, 0, Mathf.Min(totalF, totalCells));
 
-            // 涂色
+            // 三段涂色
             PaintSeg(0, 0, startF, cStartup, startF);
             PaintSeg(1, startF, actF, cActive, actF);
             PaintSeg(2, startF + actF, recF, cRecovery, recF);
 
-            // 硬直差
+            // 硬直差 = 命中硬直帧数 - 收招帧数（正数表示有利）
             float knockSpeed = DamageSystem.CalculateKnockbackVelocity(atk, f.CurrentDamage, f.fighterData.weight);
             int hitstunF = Mathf.RoundToInt(DamageSystem.CalculateHitstun(knockSpeed));
             int adv = hitstunF - recF;
@@ -206,23 +210,32 @@ public class FrameMeter : MonoBehaviour
         cursor.anchoredPosition = new Vector2(cursorX, 0f);
     }
 
+    // 【做什么】涂一段格子并把段末帧数标签摆到该段末尾
+    // 【参数】segIdx = 段序号（0起手/1判定/2收招）；from = 起始格；len = 格数；color = 颜色；segFrames = 显示帧数
     private void PaintSeg(int segIdx, int from, int len, Color color, int segFrames)
     {
         int end = Mathf.Min(from + len, totalCells);
         for (int i = from; i < end; i++)
             cells[i].color = color;
 
-        if (end > from)
-        {
-            segLabel[segIdx].text = $"{segFrames}";
-            // x 由代码算（跟着格子走），y 完全用预设体里摆好的位置（可在 Inspector 拖）
-            float x = startX + (end - 0.5f) * cellWidth;
-            float y = segLabel[segIdx].rectTransform.anchoredPosition.y;
-            segLabel[segIdx].rectTransform.anchoredPosition = new Vector2(x, y);
+        if (end <= from) return;
 
-            if (debugLog) Debug.Log($"Seg{segIdx} end={end} x={x:F1} 格子中心应= {startX + (end - 0.5f) * cellWidth:F1}");
-        }
+        segLabel[segIdx].text = $"{segFrames}";
+        // x 由代码算（跟着格子走），y 完全用预设体里摆好的位置（可在 Inspector 拖）
+        float x = startX + (end - 0.5f) * cellWidth;
+        float y = segLabel[segIdx].rectTransform.anchoredPosition.y;
+        segLabel[segIdx].rectTransform.anchoredPosition = new Vector2(x, y);
+
+        if (SmashDebug.IsOn(DebugChannel.UI))
+            SmashDebug.Log(DebugChannel.UI, $"Seg{segIdx} end={end} x={x:F1} 格子中心应={startX + (end - 0.5f) * cellWidth:F1}");
     }
 
+    #endregion
+
+    #region 5. 私有工具
+
+    // 【做什么】秒 → 帧数（四舍五入）
     private int ToF(float seconds) => Mathf.RoundToInt(seconds * frameRate);
+
+    #endregion
 }

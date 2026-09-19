@@ -4,36 +4,59 @@ using UnityEngine.UI;
 using TMPro;
 using SuperSmashLike.Core;
 
+// ============================================================
+// CharacterSelectPanel â€” é€‰äººé¢æ¿
+// èŒè´£ï¼š
+//   1. è¯» GameSettings.selectableFighters ç”Ÿæˆè§’è‰²å¡åˆ—è¡¨
+//   2. ç‚¹å‡»è§’è‰²å¡ â†’ æŠŠé€‰æ‹©å†™è¿› GameSettingsï¼ˆè·¨åœºæ™¯ä¿æŒï¼‰â†’ è¿›å…¥æˆ˜æ–—
+// æ¶æ„ä½ç½®ï¼šUI å±‚
+// ä¾èµ–ï¼šGameSettingsï¼ˆå¯é€‰æ‰‹åˆ—è¡¨ + é€‰æ‹©ç»“æœç¼“å­˜ï¼‰ã€GameManagerï¼ˆåˆ‡çŠ¶æ€ï¼‰
+//
+// ã€æ³¨æ„ã€‘é€‰æ‹©ç»“æœå­˜åœ¨ GameSettings çš„ç§æœ‰æ•°ç»„é‡Œï¼ˆSetSelection/GetSelectionï¼‰ï¼Œ
+//   é  ScriptableObject èµ„äº§å®ç°è·¨åœºæ™¯ä¿æŒ â€”â€” æˆ˜æ–—åœºæ™¯ Spawn æ—¶æŒ‰å®ƒå– fighterDataã€‚
+// ============================================================
 namespace SuperSmashLike.UI
 {
-    /// <summary>
-    /// Ñ¡ÈËÃæ°å£ºÕ¹Ê¾ËùÓĞ¿ÉÑ¡ÊÖ£¨¶Á GameSettings/FighterData ÁĞ±í£©£¬µã»÷Ñ¡¶¨ºó½øÈëÕ½¶·¡£
-    /// </summary>
     public class CharacterSelectPanel : MonoBehaviour
     {
+        #region 1. Inspector é…ç½®
+
         [Header("UI References")]
-        [SerializeField] private Transform rosterRoot;        // ½ÇÉ«¿¨ÁĞ±íÈİÆ÷£¨GridLayout£©
-        [SerializeField] private GameObject cardPrefab;       // µ¥ÕÅ½ÇÉ«¿¨ Prefab£¨º¬Í·Ïñ/Ãû×Ö/Button£©
-        [SerializeField] private Button startButton;          // "¿ªÊ¼Õ½¶·"°´Å¥£¨¿ÉÑ¡£ºÎŞÔòµã¿¨¼´¿ª´ò£©
+        [SerializeField] private Transform rosterRoot;    // è§’è‰²å¡åˆ—è¡¨å®¹å™¨ï¼ˆGridLayoutï¼‰
+        [SerializeField] private GameObject cardPrefab;   // å•å¼ è§’è‰²å¡ Prefabï¼ˆå«å¤´åƒ/åå­—/Buttonï¼‰
+        [SerializeField] private Button startButton;      // "å¼€å§‹æˆ˜æ–—"æŒ‰é’®ï¼ˆå¯é€‰ï¼šæ— åˆ™ç‚¹å¡å³å¼€æ‰“ï¼‰
+
+        #endregion
+
+        #region 2. è¿è¡Œæ—¶çŠ¶æ€
 
         private readonly List<GameObject> _cards = new();
+
+        #endregion
+
+        #region 3. Unity ç”Ÿå‘½å‘¨æœŸ
 
         private void OnEnable()
         {
             BuildRoster();
         }
 
+        // ã€åšä»€ä¹ˆã€‘é¢æ¿å…³é—­æ—¶é”€æ¯ç”Ÿæˆçš„å¡ï¼Œé¿å…ä¸‹æ¬¡å¯ç”¨é‡å¤å †å 
         private void OnDisable()
         {
             foreach (var c in _cards) if (c) Destroy(c);
             _cards.Clear();
         }
 
+        #endregion
+
+        #region 4. ç§æœ‰é€»è¾‘
+
+        // ã€åšä»€ä¹ˆã€‘æŒ‰ GameSettings çš„å¯é€‰æ‰‹åˆ—è¡¨ç”Ÿæˆè§’è‰²å¡
         private void BuildRoster()
         {
-            // ´Ó GameSettings ¶ÁÈ¡¿ÉÑ¡ÊÖÁĞ±í£¨ÈôÃ»ÓĞ¶ÀÁ¢½ÇÉ«ÁĞ±í£¬Ò²¿ÉÊÖ¶¯´Ó Inspector ÅäÖÃ£©
             GameSettings g = GameManager.Instance.gameSettings;
-            var fighters = g.GetSelectableFighters(); // ¡ï ¼ûÏÂ·½ GameSettings ²¹³ä
+            var fighters = g.GetSelectableFighters();
 
             for (int i = 0; i < fighters.Count; i++)
             {
@@ -41,27 +64,32 @@ namespace SuperSmashLike.UI
                 GameObject card = Instantiate(cardPrefab, rosterRoot);
                 _cards.Add(card);
 
-                // Ìî³ä¿¨ÃæÊı¾İ
-                int captured = i; // ±Õ°ü²¶»ñ
+                // å¡«å……å¡é¢æ•°æ®
+                int captured = i;   // é—­åŒ…æ•è·ï¼šå¿…é¡»å­˜å±€éƒ¨å˜é‡ï¼Œå¦åˆ™æ‰€æœ‰å¡éƒ½ç”¨åŒä¸€ä¸ª i
                 card.GetComponentInChildren<Image>().sprite = fd.portraitIcon;
                 card.GetComponentInChildren<TextMeshProUGUI>().text = fd.fighterName;
 
-                // µã»÷¿¨ ¡ú Îª¸ÃÍæ¼ÒÑ¡¶¨½ÇÉ«²¢½øÈëÕ½¶·
+                // ç‚¹å‡»å¡ â†’ ä¸ºè¯¥ç©å®¶é€‰å®šè§’è‰²å¹¶è¿›å…¥æˆ˜æ–—
                 card.GetComponent<Button>().onClick.AddListener(() => OnCardSelected(fd, captured));
             }
 
             if (startButton) startButton.onClick.AddListener(() => GameManager.Instance.StartMatch());
         }
 
+        // ã€åšä»€ä¹ˆã€‘è§’è‰²å¡è¢«ç‚¹å‡»ï¼šè®°å½•é€‰æ‹© â†’ ç›´æ¥å¼€æ‰“
+        // ã€æ³¨æ„ã€‘playerIndex å†³å®š"è¿™æ˜¯å‡ å·ç©å®¶çš„é€‰æ‹©"ï¼Œå½“å‰æ‰€æœ‰å¡éƒ½å†™åŒä¸€ä¸ªä¸‹æ ‡ï¼ˆå•äººæµç¨‹ï¼‰
         private void OnCardSelected(FighterData fd, int playerIndex)
         {
-            Debug.Log($"[CharacterSelect] P{playerIndex + 1} Ñ¡Ôñ: {fd.fighterName}");
-            // ¡ï ÊµÕ½µã£º°ÑÑ¡Ôñ½á¹ûĞ´Èë GameSettings£¨`SelectedFighters` ÁĞ±í£©£¬
-            //   Õ½¶·³¡¾° Spawn Ê±°´´ËÁĞ±íÉú³É Fighter prefab ²¢¸³ fighterData¡£
+            if (SmashDebug.IsOn(DebugChannel.UI))
+                SmashDebug.Log(DebugChannel.UI, $"P{playerIndex + 1} é€‰æ‹©: {fd.fighterName}");
+
+            // æŠŠé€‰æ‹©ç»“æœå†™å…¥ GameSettingsï¼ˆè·¨åœºæ™¯ä¿æŒï¼‰ï¼Œæˆ˜æ–—åœºæ™¯ Spawn æ—¶æŒ‰æ­¤ç”Ÿæˆ
             GameSettings s = GameManager.Instance.gameSettings;
-            s.SetSelection(playerIndex, fd); // ¡ï ¼ûÏÂ·½ GameSettings ²¹³ä
+            s.SetSelection(playerIndex, fd);
 
             GameManager.Instance.StartMatch();
         }
+
+        #endregion
     }
 }

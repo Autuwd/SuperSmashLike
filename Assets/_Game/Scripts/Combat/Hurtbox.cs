@@ -19,21 +19,36 @@ namespace SuperSmashLike.Combat
 {
     public class Hurtbox : MonoBehaviour
     {
-        [HideInInspector] public FighterController owner;  // 属于哪个斗士（由 FighterController 赋值）
+        #region 1. Inspector 配置
+
+        [HideInInspector] public FighterController owner;  // 属于哪个斗士（由 FighterController 在 Awake 赋值）
 
         [Header("Debug")]
-        public Color activeColor = new(1f, 0.5f, 0f, 0.3f);  // 半透明橙色
+        public Color activeColor = new(1f, 0.5f, 0f, 0.3f);  // 半透明橙色（Scene 视图）
+
+        #endregion
+
+        #region 2. 运行时状态
 
         private Collider2D hurtCollider;
+
+        #endregion
+
+        #region 3. Unity 生命周期
 
         private void Awake()
         {
             hurtCollider = GetComponent<Collider2D>();
             if (hurtCollider != null)
-                hurtCollider.isTrigger = true;  // 设为 Trigger 避免影响物理碰撞
+                hurtCollider.isTrigger = true;  // 设为 Trigger，避免影响物理碰撞
         }
 
-        // Scene 视图可视化
+        #endregion
+
+        #region 4. 调试可视化
+
+        // 【做什么】在 Scene 视图画出受击框范围，方便肉眼确认判定区
+        // 【注意】collider 可能还没被 Awake 赋值（编辑模式），所以这里兜底再取一次
         private void OnDrawGizmos()
         {
             if (hurtCollider == null) hurtCollider = GetComponent<Collider2D>();
@@ -44,5 +59,7 @@ namespace SuperSmashLike.Combat
             else if (hurtCollider is CircleCollider2D circle)
                 Gizmos.DrawSphere(transform.position + (Vector3)circle.offset, circle.radius);
         }
+
+        #endregion
     }
 }

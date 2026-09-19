@@ -5,10 +5,11 @@ using SuperSmashLike.Core;
 // ============================================================
 // InputManager — 输入管理器
 // 职责：
-//   1. 通过 Unity Input System 接收玩家输入
-//   2. 将输入转换为游戏操作，调用 FighterController 对应方法
-//   3. 根据上下文（地面/空中、是否推摇杆）决定使用哪个攻击
+//   1. 通过 Unity Input System 接收玩家输入（手动订阅，不用 PlayerInput 的 Send Messages）
+//   2. 把输入转换成游戏操作，调用 FighterController 的对应方法
+//   3. 根据上下文（地面/空中、是否推摇杆、短按/长按）决定使用哪个招式
 // 架构位置：Input 层
+// 依赖：FighterController（被控对象）、GameManager（暂停）
 //
 // 工作原理（重要变更记录 2026-08-11）：
 //   原方案依赖 PlayerInput 组件的 "Send Messages" 模式。
@@ -18,38 +19,50 @@ using SuperSmashLike.Core;
 //   （解析控件数=0，任何按键无信号）。
 //   修复：InputManager 运行时克隆一份独立的 actions 资产（JSON 克隆），
 //   完全绕开 InputUser 的污染，手动订阅全部 Action 回调。
-//   克隆资产解析控件数正常(=8)，输入验证通过。
+//
+// 【重点】攻击按键的 4 分支判定顺序敏感，不能随意调换（见 Update 内注释）
 // ============================================================
 namespace SuperSmashLike.InputSystem
 {
     public class InputManager : MonoBehaviour
     {
-        [Header("References")]
-        public FighterController fighterController;  // 要控制的斗士
+        #region 1. Inspector 配置
 
-        private PlayerInput playerInput;  // 仅用于获取 actions 资产引用（组件已被禁用）
+        [Header("References")]
+        public FighterController fighterController;  // 要控制的斗士（留空则自动取同物体上的）
+
+        [Header("长按判定")]
+        public float longPressThreshold = 0.15f;     // 短按/长按的判定阈值（秒）
+
+        #endregion
+
+        #region 2. 运行时状态
+
+        private PlayerInput playerInput;          // 仅用于获取 actions 资产引用（组件已被禁用）
         private InputActionAsset runtimeActions;  // 运行时克隆的独立资产（InputUser 无法污染）
         private InputActionMap gameplayMap;       // Gameplay 地图（启用中）
 
-        // ==================== 输入状态（暂存） ====================
-        // 这些由 Action 回调写入，在 Update 中消费
-        public Vector2 MoveInput { get; private set; }      // 移动方向（左摇杆/WASD）
-        public bool JumpPressed { get; private set; }        // 跳跃（按下的瞬间）
-        public bool AttackPressed { get; private set; }      // 攻击（按下的瞬间）
-        public bool SpecialPressed { get; private set; }     // 必杀技（按下的瞬间）
-        public bool ShieldHeld { get; private set; }         // 防御（按住/松开）
-        public bool GrabPressed { get; private set; }        // 抓取（按下的瞬间）
-        public bool TauntPressed { get; private set; }       // 嘲讽（按下的瞬间）
-        public bool PausePressed { get; private set; }       // 暂停
+        // ---- Action 回调写入的输入状态（在 Update 中消费）----
+        public Vector2 MoveInput { get; private set; }    // 移动方向（左摇杆/WASD）
+        public bool JumpPressed { get; private set; }     // 跳跃（按下的瞬间）
+        public bool AttackPressed { get; private set; }   // 攻击（按下的瞬间）
+        public bool SpecialPressed { get; private set; }  // 必杀技（按下的瞬间）
+        public bool ShieldHeld { get; private set; }      // 防御（按住/松开）
+        public bool GrabPressed { get; private set; }     // 抓取（按下的瞬间）
+        public bool TauntPressed { get; private set; }    // 嘲讽（按下的瞬间，功能未实现）
+        public bool PausePressed { get; private set; }    // 暂停
+        public bool AttackHeld { get; private set; }      // 攻击键是否按住（长按判定用）
+        public float AttackPressTime { get; private set; }// 攻击按下的时刻
 
+        private Vector2 pendingAttackDir;   // 按下瞬间的方向快照（判定窗期间使用）
+        private bool chargePending;         // 是否在等"短按/长按"判定窗
 
-        // ===== 长按判定（09-15 新增）=====
-        public bool AttackHeld { get; private set; }     // 攻击键是否按住（长按判定用）
-        public float AttackPressTime { get; private set; } // 按下瞬间的时刻
-        private Vector2 pendingAttackDir;                  // 按下瞬间的方向快照
-        private bool chargePending;                        // 是否在等"短按/长按"判定窗
-        public float longPressThreshold = 0.15f;           // 长按阈值（秒）
+        #endregion
 
+        #region 3. Unity 生命周期
+
+        // 【做什么】克隆一份独立的 actions 资产，按 playerID 做输入分组隔离
+        // 【注意】必须禁用 PlayerInput 组件 —— 它的 InputUser 关联会污染整个资产
         private void Awake()
         {
             playerInput = GetComponent<PlayerInput>();
@@ -67,23 +80,28 @@ namespace SuperSmashLike.InputSystem
                     runtimeActions = ScriptableObject.CreateInstance<InputActionAsset>();
                     runtimeActions.LoadFromJson(playerInput.actions.ToJson());
 
-                    // ⭐ 双人输入隔离（2026-08-17）：
-                    // 克隆资产默认包含全部绑定（P1键盘区+P2键盘区+手柄），
+                    // 双人输入隔离（2026-08-17）：
+                    // 克隆资产默认包含全部绑定（P1键盘区 + P2键盘区 + 手柄），
                     // 不加 bindingMask 时两套 InputManager 都响应所有按键 → 双人同输入 Bug。
-                    // 按 playerID 只保留本玩家的 control scheme 组：
-                    //   P1=KeyboardP1(WASD+JKL) / P2=KeyboardP2(方向键+小键盘) / 其他=Gamepad
+                    // 按 playerID 只保留本玩家的 control scheme 组。
                     int pid = fighterController != null ? fighterController.playerID : 0;
                     string group = pid == 0 ? "KeyboardP1" : pid == 1 ? "KeyboardP2" : "Gamepad";
                     runtimeActions.bindingMask = InputBinding.MaskByGroup(group);
-                    Debug.Log($"[InputManager] 输入分组隔离: playerID={pid} → {group}", this);
+
+                    if (SmashDebug.IsOn(DebugChannel.Input))
+                        SmashDebug.Log(DebugChannel.Input, $"输入分组隔离: playerID={pid} → {group}");
                 }
             }
 
-            Debug.Log($"[InputManager] 初始化 | PlayerInput: {(playerInput != null ? "已找到(已禁用)" : "缺失")} | " +
-                      $"克隆资产: {(runtimeActions != null ? "OK" : "失败!")} | " +
-                      $"FighterController: {(fighterController != null ? "已找到" : "缺失!")}", this);
+            if (SmashDebug.IsOn(DebugChannel.Input))
+                SmashDebug.Log(DebugChannel.Input,
+                    $"初始化 | PlayerInput: {(playerInput != null ? "已找到(已禁用)" : "缺失")} | " +
+                    $"克隆资产: {(runtimeActions != null ? "OK" : "失败!")} | " +
+                    $"FighterController: {(fighterController != null ? "已找到" : "缺失!")}");
         }
 
+        // 【做什么】订阅全部 Action 回调并启用 Gameplay 地图
+        // 【注意】Button 类型用 started 捕获"按下瞬间"，canceled 捕获"松开"
         private void OnEnable()
         {
             if (runtimeActions == null) return;
@@ -95,7 +113,6 @@ namespace SuperSmashLike.InputSystem
                 return;
             }
 
-            // 手动订阅全部 Action 回调（Button 类型用 started 捕获按下瞬间）
             gameplayMap.FindAction("Move").performed += OnMoveCtx;
             gameplayMap.FindAction("Move").canceled += OnMoveCtx;
             gameplayMap.FindAction("Jump").started += OnJumpCtx;
@@ -110,10 +127,14 @@ namespace SuperSmashLike.InputSystem
 
             gameplayMap.Enable();
 
-            var move = gameplayMap.FindAction("Move");
-            Debug.Log($"[InputManager] 输入就绪 | 移动控件数: {move.controls.Count}", this);
+            if (SmashDebug.IsOn(DebugChannel.Input))
+            {
+                var move = gameplayMap.FindAction("Move");
+                SmashDebug.Log(DebugChannel.Input, $"输入就绪 | 移动控件数: {move.controls.Count}");
+            }
         }
 
+        // 【做什么】退订全部回调并禁用地图（订阅/退订必须严格对称）
         private void OnDisable()
         {
             if (gameplayMap == null) return;
@@ -133,7 +154,10 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.Disable();
         }
 
-        // ==================== Action 回调 ====================
+        #endregion
+
+        #region 4. Action 回调（只写字段，不做决策）
+
         private void OnMoveCtx(InputAction.CallbackContext ctx)
         {
             MoveInput = ctx.ReadValue<Vector2>();
@@ -153,7 +177,7 @@ namespace SuperSmashLike.InputSystem
 
         private void OnAttackCancelCtx(InputAction.CallbackContext ctx)
         {
-            AttackHeld = false;   // 松手瞬间 → 记录"没按着了"
+            AttackHeld = false;   // 松手瞬间
         }
 
         private void OnSpecialCtx(InputAction.CallbackContext ctx)
@@ -178,10 +202,10 @@ namespace SuperSmashLike.InputSystem
 
         private void OnTauntCtx(InputAction.CallbackContext ctx)
         {
-            TauntPressed = true;
+            TauntPressed = true;   // 当前无消费方（嘲讽功能未实现）
         }
 
-        // 暂停：切换暂停/恢复
+        // 【做什么】暂停/恢复切换
         private void OnPauseCtx(InputAction.CallbackContext ctx)
         {
             if (GameManager.Instance.CurrentGameState == GameState.Battle)
@@ -190,20 +214,25 @@ namespace SuperSmashLike.InputSystem
                 GameManager.Instance.ResumeGame();
         }
 
-        // 每帧将暂存的输入状态应用到 FighterController
+        #endregion
+
+        #region 5. 每帧消费输入 → 调用 FighterController
+
+        // 【做什么】把本帧暂存的输入意图转成具体动作
+        // 【注意】攻击分支的顺序敏感，见下方注释
         private void Update()
         {
             if (fighterController == null) return;
 
-            // 将移动方向传给 FighterController
+            // ===== 1. 移动方向（无条件写入，Grab/Grabbed 状态下也要有值）=====
             fighterController.MoveInput = MoveInput;
 
-            // 跳跃（按下的瞬间处理一次）
+            // ===== 2. 跳跃（按下的瞬间处理一次）=====
             if (JumpPressed && MoveInput.y < -0.5f && fighterController.IsGrounded)
             {
                 // 落穿：↓ + 跳跃键 → 从平台下落，不起跳
                 fighterController.DropThroughPlatform();
-                JumpPressed = false;  // ← 关键：消费掉，避免下面又 TryJump
+                JumpPressed = false;   // 关键：消费掉，避免下面又 TryJump
             }
             else if (JumpPressed)
             {
@@ -211,21 +240,21 @@ namespace SuperSmashLike.InputSystem
                 JumpPressed = false;
             }
 
-            // 攻击（根据输入方向+是否空中选择攻击类型）
+            // ===== 3. 攻击（4 分支，顺序敏感）=====
             if (AttackPressed)
             {
                 FighterState st = fighterController.StateMachine.CurrentState;
 
-                // ① 被抓中：攻击键 = 挣扎（原逻辑保留）
+                // ① 被抓中：攻击键 = 挣扎
                 if (st == FighterState.Grabbed)
                 {
                     fighterController.OnMashGrabEscape();
                     chargePending = false;      // 顺手取消可能残留的判定窗
                 }
                 // ② 抓取中：攻击键 = 投掷
-                //    ★ 必须走这里，绝不能掉进下面的判定窗——否则长按会触发 StartCharge，
-                //      把 Grab 状态顶成 Attack，导致投掷失效 + 双方死锁
-                //    ★ 传什么 AttackData 无所谓：TryAttack 开头会拦截 grabTarget 并执行 PerformThrow
+                //    必须走这里，绝不能掉进下面的判定窗 —— 否则长按会触发 StartCharge，
+                //    把 Grab 状态顶成 Attack，导致投掷失效 + 双方死锁。
+                //    传什么 AttackData 无所谓：TryAttack 开头会拦截 grabTarget 并执行 PerformThrow。
                 else if (st == FighterState.Grab)
                 {
                     AttackPressed = false;
@@ -234,115 +263,74 @@ namespace SuperSmashLike.InputSystem
                 else if (fighterController.StateMachine.IsInAir()
                          || (Mathf.Abs(MoveInput.x) <= 0.5f && Mathf.Abs(MoveInput.y) <= 0.5f))
                 {
-                    AttackData attack = GetImmediateAttack();   // 空中 / 无方向 → 立即攻击
-                    if (attack != null)
-                        fighterController.TryAttack(attack);
+                    AttackData attack = GetImmediateAttack();
+                    if (attack != null) fighterController.TryAttack(attack);
                 }
                 // ④ 地面 + 有方向 → 进入判定窗（等 0.15s 区分短按/长按）
                 else
                 {
-                    pendingAttackDir = MoveInput;   // ★ 方向快照！以按下瞬间为准
+                    pendingAttackDir = MoveInput;   // 方向快照！以按下瞬间为准
                     chargePending = true;
                 }
+
                 AttackPressed = false;   // 消费
             }
 
-            // 判定窗倒计时（chargePending 期间每帧查）
+            // ===== 4. 短按/长按判定窗 =====
             if (chargePending)
             {
                 float held = Time.time - AttackPressTime;
                 if (held >= longPressThreshold)
                 {
                     chargePending = false;
-                    fighterController.StartCharge(GetSmashAttack(pendingAttackDir));  // 长按 → 蓄力
+                    fighterController.StartCharge(GetSmashAttack(pendingAttackDir));   // 长按 → 蓄力
                 }
                 else if (!AttackHeld)
                 {
                     chargePending = false;
-                    fighterController.TryAttack(GetTiltAttack(pendingAttackDir));     // 短按 → 强攻击
+                    fighterController.TryAttack(GetTiltAttack(pendingAttackDir));      // 短按 → 强攻击
                 }
                 // 都不到 → 继续等
             }
 
-            // 蓄力中松手 → 释放
+            // ===== 5. 蓄力中松手 → 释放 =====
             if (fighterController.isCharging && !AttackHeld)
-            {
                 fighterController.ReleaseCharge();
-            }
 
-            // 特殊攻击（先做 Neutral Special，方向特技后补）
+            // ===== 6. 特殊攻击 =====
             if (SpecialPressed)
             {
                 fighterController.TrySpecial(GetContextualSpecial());
                 SpecialPressed = false;
             }
 
-            // 抓取（按下的瞬间处理一次）
-            if (GrabPressed) 
+            // ===== 7. 抓取（按下的瞬间处理一次）=====
+            if (GrabPressed)
             {
                 FighterState st = fighterController.StateMachine.CurrentState;
                 if (st == FighterState.Grab && fighterController.grabTarget != null)
                 {
-                    // 已抓住人 → 按抓取键 = 投掷（指定方向由当前摇杆方向决定）
-                    fighterController.TryAttack(fighterController.fighterData.jab1);  // 传什么无所谓，TryAttack 会拦截 grabTarget
+                    // 已抓住人 → 按抓取键 = 投掷（方向由当前摇杆决定）
+                    fighterController.TryAttack(fighterController.fighterData.jab1);
                 }
                 else
                 {
-                    // 未抓人 → 尝试抓取
                     fighterController.TryGrab();
                 }
                 GrabPressed = false;
             }
 
-            // 防御（按住/松开）
+            // ===== 8. 防御与受身（按住/松开，每帧同步）=====
             fighterController.SetShielding(ShieldHeld);
-
-            fighterController.TechInputHeld = ShieldHeld;
+            fighterController.TechInputHeld = ShieldHeld;   // 受身输入复用护盾键
         }
 
-        // ================================================================
-        // 根据上下文选择攻击类型（大乱斗风格的方向+攻击）
-        //
-        // 判定逻辑（优先级从上到下）：
-        //   1. 空中状态 → 空中攻击（空N/空前/空后/空上/空下）
-        //   2. 推上/下摇杆 → 上/下Tilt攻击
-        //   3. 推左右摇杆 → 横Tilt攻击
-        //   4. 不推方向 → 近距离轻击（Jab 1）
-        //
-        // 这里简化了 Smash 攻击的判定（需要同时按攻击+方向,
-        // 实际大乱斗中推摇杆的力度决定是 Tilt 还是 Smash）
-        // ================================================================
-        //private AttackData GetContextualAttack()
-        //{
-        //    if (fighterController.fighterData == null) return null;
+        #endregion
 
-        //    bool isInAir = fighterController.StateMachine.IsInAir();
+        #region 6. 招式选择工具
 
-        //    // 空中攻击
-        //    if (isInAir)
-        //    {
-        //        if (MoveInput.y > 0.5f) return fighterController.fighterData.aerialUp;
-        //        if (MoveInput.y < -0.5f) return fighterController.fighterData.aerialDown;
-        //        if (Mathf.Abs(MoveInput.x) > 0.5f) return MoveInput.x > 0
-        //            ? fighterController.fighterData.aerialForward
-        //            : fighterController.fighterData.aerialBack;
-        //        return fighterController.fighterData.aerialNeutral;
-        //    }
-
-        //    // 地面攻击
-        //    if (Mathf.Abs(MoveInput.y) > 0.5f)
-        //        return MoveInput.y > 0
-        //            ? fighterController.fighterData.tiltUp
-        //            : fighterController.fighterData.tiltDown;
-
-        //    if (Mathf.Abs(MoveInput.x) > 0.5f)
-        //        return fighterController.fighterData.tiltSide;
-
-        //    return fighterController.fighterData.jab1;
-        //}
-
-        // 立即攻击：空中（四向+空N）/ 地面无方向（jab）—— 零延迟路径
-        // 空中方向判定必须用"当前 MoveInput"（空中没有判定窗，按下即出）
+        // 【做什么】立即攻击：空中（四向 + 空 N）/ 地面无方向（jab）—— 零延迟路径
+        // 【注意】空中方向判定必须用"当前 MoveInput"（空中没有判定窗，按下即出）
         private AttackData GetImmediateAttack()
         {
             if (fighterController.fighterData == null) return null;
@@ -363,7 +351,8 @@ namespace SuperSmashLike.InputSystem
             return fighterController.fighterData.jab1;
         }
 
-        // 短按 → tilt（强攻击）
+        // 【做什么】短按 → tilt（强攻击）
+        // 【参数】dir = 按下瞬间的方向快照
         private AttackData GetTiltAttack(Vector2 dir)
         {
             if (Mathf.Abs(dir.y) > 0.5f)
@@ -372,7 +361,8 @@ namespace SuperSmashLike.InputSystem
             return fighterController.fighterData.tiltSide;   // 横向（前/后同招）
         }
 
-        // 长按 → smash（蓄力基值）
+        // 【做什么】长按 → smash（蓄力基值）
+        // 【参数】dir = 按下瞬间的方向快照
         private AttackData GetSmashAttack(Vector2 dir)
         {
             if (Mathf.Abs(dir.y) > 0.5f)
@@ -381,14 +371,17 @@ namespace SuperSmashLike.InputSystem
             return fighterController.fighterData.smashSide;
         }
 
+        // 【做什么】必杀技按方向选招（前/后共用同一招）
         private AttackData GetContextualSpecial()
         {
             if (Mathf.Abs(MoveInput.y) > 0.5f)
                 return MoveInput.y > 0 ? fighterController.fighterData.specialUp
                                        : fighterController.fighterData.specialDown;
             if (Mathf.Abs(MoveInput.x) > 0.5f)
-                return fighterController.fighterData.specialSide;   // 前/后同一个
+                return fighterController.fighterData.specialSide;
             return fighterController.fighterData.specialNeutral;
         }
+
+        #endregion
     }
 }

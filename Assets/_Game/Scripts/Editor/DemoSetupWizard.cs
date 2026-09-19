@@ -12,12 +12,20 @@ using UnityEditor.Animations;
 using System.IO;
 
 // ============================================================
-// DemoSetupWizard — 一键初始化工具
-// 在 Unity 顶部菜单栏点击 "SuperSmashLike → Setup Demo"
-// 自动创建所有 SO 资产、预制体、场景，让项目立即可以 Play
+// DemoSetupWizard — 一键初始化工具（编辑器窗口）
+// 职责：自动创建全套 SO 资产、预制体、场景，让项目从零到可 Play
+// 架构位置：Editor 层（不进包体）
+// 使用方式：
+//   顶部菜单 SuperSmashLike → 1. Setup All Demo Assets（一键全做）
+//   也可按编号 10~20 单项执行
+//
+// 【注意】按编号顺序执行才安全：先建资产 → 再建引用资产的预制体 → 最后建场景
+// 【注意】本类未声明命名空间（历史遗留），与其他脚本不一致。
 // ============================================================
 public class DemoSetupWizard : EditorWindow
 {
+    #region 1. 一键入口
+
     [MenuItem("SuperSmashLike/1. Setup All Demo Assets", false, 1)]
     public static void SetupAll()
     {
@@ -30,10 +38,14 @@ public class DemoSetupWizard : EditorWindow
         CreateFighterPrefab();
         CreateStagePrefab();
         CreateDemoScene();
-        Debug.Log("✅ Demo setup complete! Open Scenes/BattleTest and press Play.");
+        Debug.Log("[DemoSetupWizard] Demo setup complete! Open Scenes/BattleTest and press Play.");
     }
 
     // ==================== 创建目录结构 ====================
+    #endregion
+
+    #region 2. 目录准备
+
     private static void CreateDirectories()
     {
         EnsureDirectory("Assets/_Game/ScriptableObjects/Characters");
@@ -58,6 +70,10 @@ public class DemoSetupWizard : EditorWindow
     }
 
     // ==================== 创建 GameSettings 资产 ====================
+    #endregion
+
+    #region 3. 数据资产（GameSettings / FighterData / StageData）
+
     [MenuItem("SuperSmashLike/GameSettings Asset", false, 10)]
     public static void CreateGameSettings()
     {
@@ -155,6 +171,10 @@ public class DemoSetupWizard : EditorWindow
     }
 
     // ==================== 创建 InputActions 文件 ====================
+    #endregion
+
+    #region 4. 输入资产
+
     [MenuItem("SuperSmashLike/InputActions Asset", false, 13)]
     public static void CreateInputActions()
     {
@@ -232,6 +252,10 @@ public class DemoSetupWizard : EditorWindow
     }
 
     // ==================== 创建基础 Animator Controller ====================
+    #endregion
+
+    #region 5. 动画控制器
+
     [MenuItem("SuperSmashLike/Animator Controller", false, 14)]
     public static void CreateAnimatorController()
     {
@@ -284,6 +308,10 @@ public class DemoSetupWizard : EditorWindow
     }
 
     // ==================== 创建 Fighter 预制体 ====================
+    #endregion
+
+    #region 6. 预制体（Fighter / Stage）
+
     [MenuItem("SuperSmashLike/Fighter Prefab", false, 15)]
     public static void CreateFighterPrefab()
     {
@@ -459,6 +487,10 @@ public class DemoSetupWizard : EditorWindow
     }
 
     // ==================== 创建 Demo 场景 ====================
+    #endregion
+
+    #region 7. Demo 场景
+
     [MenuItem("SuperSmashLike/Demo Scene (BattleTest)", false, 20)]
     public static void CreateDemoScene()
     {
@@ -570,7 +602,9 @@ public class DemoSetupWizard : EditorWindow
             EditorBuildSettings.scenes = newScenes;
         }
 
-        Debug.Log($"✅ Created and saved BattleTest scene at {scenePath}");
-        Debug.Log("✅ All done! Press Play to test the demo.");
+        Debug.Log($"[DemoSetupWizard] 已创建并保存 BattleTest 场景: {scenePath}");
+        Debug.Log("[DemoSetupWizard] 全部完成，按 Play 测试 Demo。");
     }
+
+    #endregion
 }

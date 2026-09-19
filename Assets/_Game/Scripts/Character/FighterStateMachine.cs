@@ -1,18 +1,22 @@
 using UnityEngine;
 
 // ============================================================
-// FighterStateMachine — 角色状态机
+// FighterStateMachine — 角色状态机（纯 C# 类，非 MonoBehaviour）
 // 职责：
-//   1. 管理斗士的所有行为状态（待机/移动/跳跃/攻击/受击/击飞/防御…）
+//   1. 管理斗士的所有行为状态（待机/移动/跳跃/攻击/受击/击飞/防御/抓投…）
 //   2. 定义状态转换规则（哪些状态可以切换到哪些）
-//   3. 提供辅助判断方法（IsInAir/CanAct/IsVulnerable）
+//   3. 提供辅助判断方法（IsInAir / CanAct / IsVulnerable）
 // 架构位置：Character 层，被 FighterController 持有和使用
 // 关系：FighterController 每帧根据输入和物理决定 → 调用 TransitionTo
+//
+// 【重点】CurrentState 是全项目状态的"唯一真相源"，
+//   FighterController 靠它写 Animator 的 State 参数、判断能否行动、能否被攻击。
 // ============================================================
 namespace SuperSmashLike.Core
 {
     // 斗士所有可能的状态枚举
-    // 数字顺序不重要，重要的是转换规则
+    // 【注意】数字顺序不重要，重要的是 CanTransitionTo 里的转换规则；
+    //   但 (int) 值会被写进 Animator 的 State 参数，改动顺序会让动画错位
     public enum FighterState
     {
         Idle,        // 地面待机——默认状态，可做任何操作
@@ -34,50 +38,54 @@ namespace SuperSmashLike.Core
     [System.Serializable]
     public class FighterStateMachine
     {
+        #region 1. 状态数据
+
         // 当前状态（只读外部）
         public FighterState CurrentState { get; private set; } = FighterState.Idle;
 
         // 上一个状态（用于状态退出/进入时的判断）
         public FighterState PreviousState { get; private set; } = FighterState.Idle;
 
-        // 状态变更通知事件
-        // FighterController 监听此事件来做动画切换、特效触发等
+        // 状态变更通知事件（FighterController 监听它做动画切换、特效触发）
         public System.Action<FighterState, FighterState> OnStateChanged;
 
-        // 初始化状态机，设置初始状态为 Idle
+        #endregion
+
+        #region 2. 公开 API
+
+        // 【做什么】初始化状态机（重生时必须调用）
+        // 【注意】Dead 状态无法 TransitionTo(Idle)，所以重生走 Initialize 而不是 TransitionTo
         public void Initialize(FighterState startState)
         {
             CurrentState = startState;
             PreviousState = startState;
         }
 
-        // 核心逻辑：判断能否从当前状态切换到目标状态
-        // 这里定义了大乱斗风格的状态转换约束：
-        // - 死亡后只能重生（切换到 Idle）
-        // - 攻击中可连段（Attack → Attack 允许连击取消）
-        // - 击飞中只能落地/死亡/自由移动
-        // - 防御中可盾反/抓取
+        // 【做什么】判断能否从当前状态切换到目标状态
+        // 【返回】true = 允许切换
+        // 【注意】这是大乱斗风格的状态转换约束表，改动前先想清楚会不会破坏：
+        //   死亡后只能重生 / 攻击中可连段 / 击飞中只能落地或死亡 / 防御中可盾反或抓取
         public bool CanTransitionTo(FighterState target)
         {
             // 死亡后不能做任何事，除非重生回到 Idle
             if (CurrentState == FighterState.Dead && target != FighterState.Idle)
                 return false;
 
-            // 攻击中允许连击取消（攻击→攻击=连段）
+            // 攻击中允许连击取消（攻击→攻击 = 连段）
             if (CurrentState == FighterState.Attack && target == FighterState.Attack)
                 return true;
 
-            // 击飞中只能：自由下落/死亡/落地待机/继续受击
+            // 击飞中只能：自由下落 / 死亡 / 落地待机 / 继续受击
             if (CurrentState == FighterState.Knockback)
                 return target == FighterState.Fall || target == FighterState.Dead
                     || target == FighterState.Idle || target == FighterState.Hit;
 
-            // 受击/眩晕中只能：落地/继续被击飞/死亡
+            // 受击/眩晕中只能：落地 / 继续被击飞 / 死亡
             if (CurrentState == FighterState.Hit || CurrentState == FighterState.Stun)
                 return target == FighterState.Idle || target == FighterState.Fall
                     || target == FighterState.Knockback || target == FighterState.Dead;
 
-            // 防御中只能：放下盾/被打出盾硬直/出抓取
+            // 防御中只能：放下盾 / 被打出盾硬直 / 出抓取
             if (CurrentState == FighterState.Shield)
                 return target == FighterState.Idle || target == FighterState.ShieldStun
                     || target == FighterState.Grab || target == FighterState.Stun
@@ -87,23 +95,29 @@ namespace SuperSmashLike.Core
             return true;
         }
 
-        // 执行状态转换
-        // 调用 CanTransitionTo 校验 → 记录上一个状态 → 设置新状态 → 派发事件
+        // 【做什么】执行状态转换
+        // 【流程】CanTransitionTo 校验 → 记录上一个状态 → 设置新状态 → 派发事件
+        // 【注意】被拒绝时不报错只记日志 —— 很多"看起来没生效"的问题根源就在这里，
+        //   排障时先打开 State 通道看有没有"切换被拒"
         public void TransitionTo(FighterState newState)
         {
             if (!CanTransitionTo(newState))
             {
-                Debug.Log($"🚫 切换被拒: {CurrentState} → {newState}");
+                if (SmashDebug.IsOn(DebugChannel.State))
+                    SmashDebug.Log(DebugChannel.State, $"切换被拒: {CurrentState} → {newState}");
                 return;
             }
-            //Debug.Log($"✅ 切换: {CurrentState} → {newState}");
+
             PreviousState = CurrentState;
             CurrentState = newState;
             OnStateChanged?.Invoke(PreviousState, newState);
         }
 
-        // 辅助方法：角色是否在空中？
-        // 用于判断是否使用空中攻击、空中闪避等
+        #endregion
+
+        #region 3. 状态查询
+
+        // 【做什么】角色是否在空中？（用于判断能否用空中攻击、空中闪避等）
         public bool IsInAir()
         {
             return CurrentState == FighterState.Jump
@@ -111,8 +125,7 @@ namespace SuperSmashLike.Core
                 || CurrentState == FighterState.Knockback;
         }
 
-        // 辅助方法：角色能否主动做出操作？
-        // 用于判断是否可攻击/跳跃/防御等
+        // 【做什么】角色能否主动做出操作？（用于判断能否攻击/跳跃/防御）
         public bool CanAct()
         {
             return CurrentState == FighterState.Idle
@@ -121,8 +134,7 @@ namespace SuperSmashLike.Core
                 || CurrentState == FighterState.Fall;
         }
 
-        // 辅助方法：角色是否可被攻击？
-        // 举盾/死亡/抓取状态下不可被攻击
+        // 【做什么】角色是否可被攻击？（举盾/死亡/抓取状态下不可被攻击）
         public bool IsVulnerable()
         {
             return CurrentState != FighterState.Shield
@@ -130,5 +142,7 @@ namespace SuperSmashLike.Core
                 && CurrentState != FighterState.Grab
                 && CurrentState != FighterState.Grabbed;
         }
+
+        #endregion
     }
 }
