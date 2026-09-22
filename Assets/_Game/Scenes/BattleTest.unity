@@ -574,10 +574,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 4629415475760603223, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
-      propertyPath: attackField
-      value: aerialDown
-      objectReference: {fileID: 0}
     - target: {fileID: 6592082993512997954, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_LocalPosition.x
       value: -6
@@ -692,6 +688,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gameSettings: {fileID: 11400000, guid: 61db51ac74888a849b541de34a3ac18f, type: 2}
   fighterPrefab: {fileID: 7541988065048707383, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
+  debugSettings: {fileID: 11400000, guid: f2978813f044761499c339eb8101fc29, type: 2}
   skipToBattle: 1
   activePlayers: []
 --- !u!4 &527332636

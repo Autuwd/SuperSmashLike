@@ -107,6 +107,14 @@ namespace SuperSmashLike.Core
             objToSpawn.transform.position = position;
             objToSpawn.transform.rotation = rotation;
             objToSpawn.SetActive(true);
+
+            var ps = objToSpawn.GetComponent<ParticleSystem>();
+            if (ps != null)
+            {
+                ps.Clear();
+                ps.Play();
+            }
+
             pool.Enqueue(objToSpawn);
 
             return objToSpawn;

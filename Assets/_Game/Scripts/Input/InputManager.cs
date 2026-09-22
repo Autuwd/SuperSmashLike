@@ -57,6 +57,15 @@ namespace SuperSmashLike.InputSystem
         private Vector2 pendingAttackDir;   // 按下瞬间的方向快照（判定窗期间使用）
         private bool chargePending;         // 是否在等"短按/长按"判定窗
 
+        //特殊攻击蓄力
+        private bool specialChargePending;
+        private float specialPressTime;
+        private Vector2 pendingSpecialDir;
+
+        private float lastDownTapTime = -1f;          // 上次按"下"的时间
+        private const float DownDoubleTapWindow = 0.25f;  // 双击判定窗口（可调）
+        private bool previousMoveInputY;
+
         #endregion
 
         #region 3. Unity 生命周期
@@ -119,6 +128,7 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Attack").started += OnAttackCtx;
             gameplayMap.FindAction("Attack").canceled += OnAttackCancelCtx;
             gameplayMap.FindAction("Special").started += OnSpecialCtx;
+            gameplayMap.FindAction("Special").canceled += OnSpecialCtx;
             gameplayMap.FindAction("Shield").started += OnShieldStartCtx;
             gameplayMap.FindAction("Shield").canceled += OnShieldCancelCtx;
             gameplayMap.FindAction("Grab").started += OnGrabCtx;
@@ -145,6 +155,7 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Attack").started -= OnAttackCtx;
             gameplayMap.FindAction("Attack").canceled -= OnAttackCancelCtx;
             gameplayMap.FindAction("Special").started -= OnSpecialCtx;
+            gameplayMap.FindAction("Special").canceled -= OnSpecialCtx;
             gameplayMap.FindAction("Shield").started -= OnShieldStartCtx;
             gameplayMap.FindAction("Shield").canceled -= OnShieldCancelCtx;
             gameplayMap.FindAction("Grab").started -= OnGrabCtx;
@@ -182,7 +193,20 @@ namespace SuperSmashLike.InputSystem
 
         private void OnSpecialCtx(InputAction.CallbackContext ctx)
         {
-            SpecialPressed = true;
+            if (ctx.started)
+            {
+                specialPressTime = Time.time;
+                pendingSpecialDir = MoveInput;  // 快照方向
+                specialChargePending = true;
+            }
+            else if (ctx.canceled && specialChargePending)
+            {
+                float held = Time.time - specialPressTime;
+                bool isLongPress = held >= longPressThreshold;
+                // 注入到 FighterController（或直接写招式数据的 spawnOffset 缩放因子）
+                fighterController.TrySpecial(GetContextualSpecial(pendingSpecialDir), isLongPress);
+                specialChargePending = false;
+            }
         }
 
         private void OnShieldStartCtx(InputAction.CallbackContext ctx)
@@ -227,14 +251,27 @@ namespace SuperSmashLike.InputSystem
             // ===== 1. 移动方向（无条件写入，Grab/Grabbed 状态下也要有值）=====
             fighterController.MoveInput = MoveInput;
 
-            // ===== 2. 跳跃（按下的瞬间处理一次）=====
-            if (JumpPressed && MoveInput.y < -0.5f && fighterController.IsGrounded)
+            // ===== 落穿：双击下（两次按下的 rising edge 间隔 < 窗口）=====
+            bool downNow = MoveInput.y < -0.5f;
+            bool downJustPressed = downNow && !previousMoveInputY;
+            previousMoveInputY = downNow;
+
+            if (downJustPressed)
             {
-                // 落穿：↓ + 跳跃键 → 从平台下落，不起跳
-                fighterController.DropThroughPlatform();
-                JumpPressed = false;   // 关键：消费掉，避免下面又 TryJump
+                if (Time.time - lastDownTapTime <= DownDoubleTapWindow)
+                {
+                    if (fighterController.IsGrounded)
+                        fighterController.DropThroughPlatform();
+                    lastDownTapTime = -1f;   // 消费掉，防三连下误触发
+                }
+                else
+                {
+                    lastDownTapTime = Time.time;
+                }
             }
-            else if (JumpPressed)
+
+            // ===== 2. 跳跃（按下的瞬间处理一次）=====
+            if (JumpPressed)
             {
                 fighterController.TryJump();
                 JumpPressed = false;
@@ -297,12 +334,12 @@ namespace SuperSmashLike.InputSystem
             if (fighterController.isCharging && !AttackHeld)
                 fighterController.ReleaseCharge();
 
-            // ===== 6. 特殊攻击 =====
-            if (SpecialPressed)
-            {
-                fighterController.TrySpecial(GetContextualSpecial());
-                SpecialPressed = false;
-            }
+            //// ===== 6. 特殊攻击 =====
+            //if (SpecialPressed)
+            //{
+            //    fighterController.TrySpecial(GetContextualSpecial(pendingSpecialDir));
+            //    SpecialPressed = false;
+            //}
 
             // ===== 7. 抓取（按下的瞬间处理一次）=====
             if (GrabPressed)
@@ -372,12 +409,12 @@ namespace SuperSmashLike.InputSystem
         }
 
         // 【做什么】必杀技按方向选招（前/后共用同一招）
-        private AttackData GetContextualSpecial()
+        private AttackData GetContextualSpecial(Vector2 dir)
         {
-            if (Mathf.Abs(MoveInput.y) > 0.5f)
-                return MoveInput.y > 0 ? fighterController.fighterData.specialUp
-                                       : fighterController.fighterData.specialDown;
-            if (Mathf.Abs(MoveInput.x) > 0.5f)
+            if (Mathf.Abs(dir.y) > 0.5f)
+                return dir.y > 0 ? fighterController.fighterData.specialUp
+                                 : fighterController.fighterData.specialDown;
+            if (Mathf.Abs(dir.x) > 0.5f)
                 return fighterController.fighterData.specialSide;
             return fighterController.fighterData.specialNeutral;
         }

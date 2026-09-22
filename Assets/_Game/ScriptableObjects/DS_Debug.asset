@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 103fb939ebe92444c97b3fe0f9104b13, type: 3}
+  m_Name: DS_Debug
+  m_EditorClassIdentifier: 
+  master: 1
+  onlyWarnings: 0
+  combat: 0
+  state: 0
+  input: 0
+  grab: 0
+  movement: 0
+  match: 0
+  ui: 0
+  camera: 0
+  showOnScreenPanel: 0
+  toggleKey: 282
+  quickCombatDebug: 0

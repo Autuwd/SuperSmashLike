@@ -168,6 +168,7 @@ MonoBehaviour:
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -177,6 +178,9 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
   owner: {fileID: 0}
@@ -210,7 +214,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   data: {fileID: 11400000, guid: 6490100909cc21148a2eb689bf4bbe67, type: 2}
-  attackField: tiltUp
+  attackField: aerialDown
 --- !u!1 &1980445802579770856
 GameObject:
   m_ObjectHideFlags: 0
@@ -495,7 +499,6 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 64
-  velocity: {x: 0, y: 0}
   remainingJumps: 0
   isJumping: 0
   jumpHeld: 0
@@ -507,6 +510,7 @@ MonoBehaviour:
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -516,11 +520,16 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
   isAttacking: 0
   attackTimer: 0
   attackFallbackTimer: 0
+  specialUpDistance: 8
+  farSpecialRange: 2.5
   isCharging: 0
   chargeTimer: 0
   maxChargeTime: 0.8
@@ -534,6 +543,7 @@ MonoBehaviour:
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -543,15 +553,20 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
   comboStep: 0
   comboWindowStart: 0.4
   comboWindowEnd: 0.85
+  specialCancelStart: 0.2
+  specialCancelEnd: 0.6
   knockbackVelocity: {x: 0, y: 0}
   isInKnockback: 0
   gravityScale: 2.2
-  fastFallMultiplier: 1.6
+  fastFallMultiplier: 3
   jumpBufferTime: 0.1
   coyoteTime: 0.1
   doubleTapWindow: 0.25
@@ -564,12 +579,14 @@ MonoBehaviour:
   techInvincibleTime: 0.5
   grabRange: 1.2
   grabHoldDistance: 1
-  grabTarget: {fileID: 0}
-  grabber: {fileID: 0}
+  escapeMashThreshold: 8
   isInvincible: 0
   respawnTimer: 0
   remainingStocks: 3
-  escapeMashThreshold: 8
+  velocity: {x: 0, y: 0}
+  grabTarget: {fileID: 0}
+  grabber: {fileID: 0}
+  hitboxActivatedThisAttack: 0
 --- !u!114 &2503629124996281800
 MonoBehaviour:
   m_ObjectHideFlags: 0

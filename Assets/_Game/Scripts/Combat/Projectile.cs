@@ -23,6 +23,17 @@ namespace SuperSmashLike.Combat
         public float speed = 15f;       // 飞行速度（单位/秒）
         public float lifeTime = 2f;     // 存活时长（秒），超时自动回收
 
+        [Header("抛物线/旋转（直线投射物留 0）")]
+        public float launchAngle = 0f;   // 发射角度（度），0=水平
+        public float gravity = 0f;       // 重力加速度，0=无弧线
+        public float spinSpeed = 0f;     // 每秒旋转角度（Z轴），0=不转
+        public float acceleration = 0f;         // 新增：飞行加速度（沿速度方向，单位/秒²）
+        public float spinAcceleration = 0f;     // 新增：旋转角加速度（度/秒²），1 = 起步慢 . . . 越转越快
+
+        [Header("命中盒对齐（0 = 保持预制体原样）")]
+        public float hitOffsetForward = 0f;        // 碰撞盒向飞行方向前移量
+        public Vector2 hitSize = Vector2.zero;     // 命中盒尺寸（zero = 不改）
+
         #endregion
 
         #region 2. 运行时状态
@@ -31,6 +42,9 @@ namespace SuperSmashLike.Combat
         private FighterController owner;    // 发射者（用于排除自伤）
         private int dir = 1;                // 飞行方向：1=右, -1=左
         private float timer;                // 已存活时间
+
+        private Vector2 velocity;
+        private float angularSpeed;
 
         #endregion
 
@@ -60,12 +74,39 @@ namespace SuperSmashLike.Combat
             owner = attacker;
             dir = direction;
             timer = 0f;
+
+            float rad = launchAngle * Mathf.Deg2Rad;
+            velocity = new Vector2(Mathf.Cos(rad) * speed * dir, Mathf.Sin(rad) * speed);
+            angularSpeed = spinSpeed;
+
+            if(TryGetComponent<ParticleSystem>(out var ps))
+            {
+                var shape = ps.shape;                          // 气波/投射物通用：发射轴朝飞行方向
+                shape.rotation = new Vector3(0f, 90f * Mathf.Sign(dir), 0f);
+
+                var vel = ps.velocityOverLifetime;             // 火球专用：向后方拖尾
+                vel.xMultiplier = -Mathf.Abs(vel.xMultiplier) * Mathf.Sign(dir);
+            }
+
+            var col = GetComponent<BoxCollider2D>();
+            if (col != null && hitSize != Vector2.zero)
+            {
+                col.offset = new Vector2(dir * hitOffsetForward, col.offset.y);   // 朝飞行方向
+                col.size = hitSize;
+            }
         }
 
         private void Update()
         {
-            // 直线飞行（用 Translate 而非物理，投射物不需要碰撞体推挤）
-            transform.Translate(Vector2.right * dir * speed * Time.deltaTime);
+            // 先慢后快：沿飞行方向持续加速（0 速保护，防 NaN）
+            if (acceleration > 0f && velocity.sqrMagnitude > 0.01f)
+                velocity += (Vector2)(velocity.normalized * (acceleration * Time.deltaTime));
+
+            velocity.y -= gravity * Time.deltaTime;  // 抛物线
+            angularSpeed += spinAcceleration * Time.deltaTime;  //越转越快
+            transform.position += (Vector3)(velocity * Time.deltaTime);
+            transform.Rotate(0, 0, angularSpeed * Time.deltaTime);  // 旋转
+
 
             // 超时回收
             timer += Time.deltaTime;

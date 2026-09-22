@@ -5,15 +5,15 @@ using SuperSmashLike.Core;
 // Platform — 可穿越平台（单向平台）
 // 职责：
 //   1. 实现大乱斗风格的可穿越平台（从下方跳过可站在上面）
-//   2. 支持从上方落下穿过（↓ + 跳跃键 → 落穿平台）
+//   2. 支持从上方落下穿过（角色侧双击↓ → IgnoreCollision 豁免）
 // 架构位置：Stage 层
 // 依赖：PlatformEffector2D（Unity 内置组件，实现单向碰撞）
 // 被谁使用：FighterController.DropThroughPlatform()
 //
 // 工作原理：
 //   默认用 PlatformEffector2D 的 useOneWay 实现"只从上方碰撞"
-//   DropThrough() 时临时关闭 collider → 角色可穿过下落
-//   一段时间后自动恢复 → 角色又可站在上面
+//   落穿由角色侧 Physics2D.IgnoreCollision(角色, 本平台, true) 临时豁免
+//   角色完全穿过平台后恢复（IgnoreCollision false）
 // ============================================================
 namespace SuperSmashLike.Stage
 {
@@ -24,7 +24,6 @@ namespace SuperSmashLike.Stage
 
         [Header("Settings")]
         public bool isPassThrough = true;          // 是否可穿越（false = 实心平台）
-        public float disableCollisionTime = 0.5f;  // 落穿后碰撞禁用时间（秒）
 
         #endregion
 
@@ -32,7 +31,6 @@ namespace SuperSmashLike.Stage
 
         private Collider2D platformCollider;   // 平台碰撞体
         private PlatformEffector2D effector;   // 单向碰撞效应器
-        private float dropTimer;               // 落穿计时器
 
         #endregion
 
@@ -54,30 +52,14 @@ namespace SuperSmashLike.Stage
             effector.surfaceArc = 180f;              // 单向作用弧
         }
 
-        // 【做什么】落穿计时结束 → 恢复碰撞
-        private void Update()
-        {
-            if (dropTimer <= 0f) return;
-
-            dropTimer -= Time.deltaTime;
-            if (dropTimer <= 0f)
-                platformCollider.enabled = true;   // 恢复碰撞 → 又能站立
-        }
-
         #endregion
 
         #region 4. 公开 API
 
-        // 【做什么】落穿平台：临时关掉碰撞，让角色掉下去
-        // 【注意】实现方式是直接 disable collider（不是翻转 effector 角度），
-        //   靠 Update 里的计时器恢复
-        public void DropThrough()
-        {
-            if (!isPassThrough || platformCollider == null) return;
-
-            platformCollider.enabled = false;
-            dropTimer = disableCollisionTime;
-        }
+        // 【做什么】暴露平台碰撞体
+        // 【注意】穿越/恢复由角色侧 Physics2D.IgnoreCollision 按碰撞对处理，
+        //   平台不负责开关注销 —— 这样两人同站时只有要下去的人穿过
+        public Collider2D Collider => platformCollider;
 
         #endregion
 

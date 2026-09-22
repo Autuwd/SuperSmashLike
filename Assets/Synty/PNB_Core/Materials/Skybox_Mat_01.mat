@@ -38,6 +38,8 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaCutoff: 0.5
+    - _BUILTIN_QueueControl: 0
+    - _BUILTIN_QueueOffset: 0
     - _Distance: 200
     - _Enable_UV_Based: 0
     - _EnvironmentReflections: 1

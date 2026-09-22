@@ -167,6 +167,15 @@ namespace SuperSmashLike.Core
 
         #endregion
 
+        #region 投射物（特殊攻击用）
+
+        [Header("Projectile")]
+        public GameObject projectilePrefab;      // 弹种预制体（null = 不是投射物招）
+        public Vector2 projectileSpawnOffset;    // 出生点偏移（x 按朝向翻转；y 相对角色脚底）
+        public float projectileSpeed = 12f;      // 弹速（覆盖预制体默认值）
+
+        #endregion
+
         #region 判定框
 
         [Header("Hitbox")]

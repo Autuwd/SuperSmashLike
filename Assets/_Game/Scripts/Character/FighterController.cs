@@ -2,6 +2,7 @@ using SuperSmashLike.Combat;
 using SuperSmashLike.InputSystem;
 using SuperSmashLike.Managers;
 using SuperSmashLike.Stage;
+using System.Collections.Generic;
 using UnityEngine;
 
 // ============================================================
@@ -56,12 +57,17 @@ namespace SuperSmashLike.Core
         public int remainingJumps;   // 剩余跳跃次数（大乱斗通常可跳 2 次）
         public bool isJumping;       // 是否正在跳跃
         public bool jumpHeld;        // 跳跃键是否按住
+        private bool specialUpUsed;   // 上B空中只能一次，落地后才恢复
+        private bool specialUpInStartup;    // SU 起手缓冲期内禁止落地刷新
+        private bool isDroppingThrough;   // 落穿中：强制非地面，让重力/状态机正常走 Fall
 
         [Header("Attack")]
         public AttackData attackData;       // 当前攻击数据（起手/连段推进/缓冲消费共用）
         public bool isAttacking;            // 是否正在攻击动画中
         public float attackTimer;           // 攻击剩余持续时间（当前只写不读，保留供 FrameMeter 扩展）
         public float attackFallbackTimer;   // 攻击兜底计时（独立于 attackTimer，防事件链路断卡死）
+        public float specialUpDistance = 12f;  // 上B瞬移高度
+        public float farSpecialRange = 2.5f;  // 长按对应远距离位置
 
         [Header("Charge")]
         public bool isCharging;              // 是否蓄力中
@@ -76,6 +82,10 @@ namespace SuperSmashLike.Core
         public int comboStep;            // 当前连招段（0=Jab1, 1=Jab2, 2=Jab3）
         public float comboWindowStart = 0.3f;   // 连招窗口起点（normalizedTime）
         public float comboWindowEnd = 1.0f;     // 连招窗口终点
+
+        [Header("Special Cancel")]
+        public float specialCancelStart = 0.2f;   // 触发判定后开窗
+        public float specialCancelEnd = 0.6f;     // 关窗（必须 < 1.0f）
 
         [Header("Knockback")]
         public Vector2 knockbackVelocity;  // 击飞速度向量（由 DamageSystem 计算）
@@ -154,6 +164,8 @@ namespace SuperSmashLike.Core
         private bool stunTechable;              // 摔地硬直是否可被护盾提前起身
         private bool _isKilling;                // Kill 防重入
 
+        private readonly List<Platform> droppedPlatforms = new();  //正穿过的平台
+
         #endregion
 
         #region 3. 事件
@@ -193,6 +205,7 @@ namespace SuperSmashLike.Core
             StateMachine.Initialize(FighterState.Idle);                        // 初始状态 = 待机
             currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;   // 满盾
             remainingJumps = fighterData.jumpCount;                            // 满跳跃次数
+            specialUpUsed = false;                                             // 恢复上B
             remainingStocks = GameManager.Instance.gameSettings.stockCount;    // 同步剩余命数
             GameManager.Instance.RegisterFighter(this);                        // 向 GameManager 注册
         }
@@ -201,9 +214,8 @@ namespace SuperSmashLike.Core
         private void Update()
         {
             // ===== 1. 地面检测与缓冲计时 =====
-            IsGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
-            coyoteTimer = IsGrounded ? coyoteTime : coyoteTimer - Time.deltaTime;   // 着地刷新，离地倒计时
-            if (jumpBufferTimer > 0f) jumpBufferTimer -= Time.deltaTime;
+            bool groundHit = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+            IsGrounded = groundHit && !isDroppingThrough;   // 落穿中强制非地面
 
             // ===== 2. 死亡：只关渲染和碰撞，不关 GameObject =====
             if (StateMachine.CurrentState == FighterState.Dead)
@@ -239,10 +251,32 @@ namespace SuperSmashLike.Core
             UpdateTimers();
             UpdateGravity();
 
-            // 快速下落：下落中按住 ↓ 加速（更快落地）
-            bool fastFallHeld = MoveInput.y < -0.5f;
-            if (StateMachine.CurrentState == FighterState.Fall && fastFallHeld && velocity.y < -4f)
-                velocity.y = Mathf.Min(velocity.y, -fighterData.fastFallSpeed * fastFallMultiplier);
+            // ===== 4.5 落穿恢复：完全穿过平台后恢复碰撞 =====
+            // 脚下实体探测不受 IgnoreCollision 影响：能同时看到被忽略平台与真实地面/下层平台
+            Collider2D groundCol = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+
+            for (int i = droppedPlatforms.Count - 1; i >= 0; i--)
+            {
+                var plat = droppedPlatforms[i];
+                if (plat == null) { droppedPlatforms.RemoveAt(i); continue; }
+
+                // 角色碰撞体完全离开平台碰撞体（上或下）才恢复，避免恢复瞬间重叠被顶回
+                bool fullyBelow = mainCollider.bounds.max.y < plat.Collider.bounds.min.y - 0.05f;
+                bool fullyAbove = mainCollider.bounds.min.y > plat.Collider.bounds.max.y + 0.05f;
+
+                // 【预防】着地"在别处"也算恢复：双层平台间距 < 角色身高时，头顶还压在上层
+                //   平台内无法 fullyBelow；但脚下已踩到别的实体（下层平台/地面）→ 应恢复。
+                //   必须排除"探测到的是当前平台本身"（IgnoreCollision 不影响 OverlapCircle）
+                bool standingOnOther = groundCol != null
+                    && groundCol.GetComponentInParent<Platform>() != plat;
+
+                if (fullyBelow || fullyAbove || standingOnOther)
+                {
+                    Physics2D.IgnoreCollision(mainCollider, plat.Collider, false);
+                    droppedPlatforms.RemoveAt(i);
+                    if (droppedPlatforms.Count == 0) isDroppingThrough = false;
+                }
+            }
 
             // ===== 5. 双击方向键检测 → 进入跑步 =====
             int currentDir = MoveInput.x > 0.1f ? 1 : (MoveInput.x < -0.1f ? -1 : 0);
@@ -372,7 +406,7 @@ namespace SuperSmashLike.Core
                     animator.SetInteger("ComboStep", 0);
                     isAttacking = false;
                     if (StateMachine.CurrentState == FighterState.Attack)
-                        StateMachine.TransitionTo(FighterState.Idle);
+                        StateMachine.TransitionTo(IsGrounded ? FighterState.Idle : FighterState.Fall);
                 }
             }
 
@@ -502,15 +536,27 @@ namespace SuperSmashLike.Core
 
                 velocity.y = 0f;
                 remainingJumps = fighterData.jumpCount;   // 落地重置跳跃次数
+                if (!specialUpInStartup) specialUpUsed = false;  // 落地恢复上B，起手期内不恢复
 
                 // 落地时有缓冲的跳跃意图 → 自动起跳
                 if (jumpBufferTimer > 0f)
                     TryPerformJump();
             }
 
-            // 下落速度上限
-            if (velocity.y < -fighterData.fallSpeed)
-                velocity.y = -fighterData.fallSpeed;
+            // 下落速度（大乱斗手感：按住 ↓ 立即速降，不是等重力慢慢爬）
+            bool fastFall = MoveInput.y < -0.5f && StateMachine.CurrentState == FighterState.Fall;
+            float maxFallSpeed = fastFall
+                ? fighterData.fastFallSpeed * fastFallMultiplier   // 速降档：15×1.6 = -24
+                : fighterData.fallSpeed;                           // 普通档：-8
+
+            if (fastFall)
+            {
+                velocity.y = -maxFallSpeed;
+            }
+            else if (velocity.y < -maxFallSpeed)
+            {
+                velocity.y = -maxFallSpeed;
+            }
         }
 
         // 【做什么】水平移动与地面/空中状态切换
@@ -785,19 +831,108 @@ namespace SuperSmashLike.Core
 
         // 【做什么】特殊攻击（投射物型：Archer 箭 / Mage 火球）
         // 【注意】复用 Attack 状态播动画，用 0.5s 快速兜底结束
-        public void TrySpecial(AttackData data)
+        public void TrySpecial(AttackData data, bool held = false)
         {
             if (data == null || isInKnockback || StateMachine.CurrentState == FighterState.Dead)
                 return;
-            if (isAttacking || isShielding) return;   // 攻击/举盾中不能发
+            if (isShielding) return;
 
-            // 生成投射物（位置：角色前方胸口高度，方向按朝向）
-            Vector3 spawnPos = transform.position + new Vector3(isFacingRight ? 0.8f : -0.8f, 1.0f, 0f);
-            var proj = Projectile.Spawn(projectilePrefab, spawnPos, isFacingRight ? 1 : -1, data, this);
-            if (proj == null) return;
+            // 攻击中：只有"该招标记可必杀取消 + 当前在取消窗口内"才放行
+            if (isAttacking && !IsInSpecialCancelWindow()) return;
 
+            // ===== 取消路径清理（防 Jab 漏判定式事故：残留激活判定框）=====
+            if (isAttacking)
+            {
+                // 1. 关掉所有还开着的判定框（否则取消后残留激活框 → 错误命中）
+                foreach (var hb in GetComponentsInChildren<Hitbox>(true))
+                    hb.Deactivate();
+
+                // 2. 清连段状态（对齐 UpdateTimers 兜底的清理）
+                comboStep = 0;
+                animator.SetInteger("ComboStep", 0);
+                inputBuffer.Clear();
+
+                // 3. 攻击数据切换为必杀数据（替换当前攻击）
+                attackData = data;
+                foreach (var hb in GetComponentsInChildren<Hitbox>(true))
+                    hb.attackData = attackData;
+            }
+
+            // ===== 分支 1：SU 位移闪现（无投射物） =====
+            if (data == fighterData.specialUp)
+            {
+                if (specialUpUsed) return;  //空中不能二段瞬移
+                DoSpecialUp(data);
+                return;
+            }
+
+            isAttacking = true;
+            hitboxActivatedThisAttack = false;
+
+            // ===== 分支 2：投射物型（SN 火球 / SF 气波 / SD 石头） =====
+            if (data.projectilePrefab == null)
+            {
+                if (SmashDebug.IsOn(DebugChannel.Combat))
+                    SmashDebug.Log(DebugChannel.Combat, $"特殊攻击 {data.attackName} 缺 projectilePrefab");
+                return;
+            }
+
+            // 出生点：偏移 x 按朝向翻转；只有石头用远近分档
+            float reach = (data == fighterData.specialDown && held) ? farSpecialRange : 1f;
+            Vector3 spawnPos = transform.position
+                    + new Vector3((isFacingRight ? 1f : -1f) * data.projectileSpawnOffset.x
+                    * reach,
+                    data.projectileSpawnOffset.y, 0f);
+
+            var proj = Projectile.Spawn(data.projectilePrefab, spawnPos, isFacingRight ? 1 : -1, data, this);
+            if (proj != null && data.projectileSpeed > 0f)
+                proj.speed = data.projectileSpeed;   // 招式定义的速度优先
+
+            // 播出场动作（火球投掷手 / 踢腿 / 扔石）→ 由 AttackFinished 或 0.5s 兜底收尾
+            SetAttackAnim(data);
             StateMachine.TransitionTo(FighterState.Attack);
-            attackFallbackTimer = 0.5f;   // 快速结束
+            attackFallbackTimer = 0.5f;
+        }
+
+        // 【做什么】上B：起始闪光 → 垂直瞬移 → 终点闪光，全程短暂无敌
+        private void DoSpecialUp(AttackData data)
+        {
+            isAttacking = true;
+            hitboxActivatedThisAttack = false;
+            specialUpUsed = true;
+            specialUpInStartup = true;  //起手缓冲
+
+            // 1. 起始位置闪光（场景级对象，不跟随角色）
+            var startFx = ObjectPooler.Instance.Spawn(data.hitEffectPrefab, transform.position, Quaternion.identity);
+            if (startFx != null) ObjectPooler.Instance.Despawn(startFx, 1f);
+
+            StartCoroutine(TeleportUp(data));
+
+            // 5. 占攻击态（无动画，特效即表现）
+            SetAttackAnim(data);
+            StateMachine.TransitionTo(FighterState.Attack);
+            attackFallbackTimer = 0.5f;
+        }
+
+        private System.Collections.IEnumerator TeleportUp(AttackData data)
+        {
+            yield return new WaitForSeconds(0.15f);   // 闪光先亮，角色原地
+
+            // 2. 位移：直接改位置（teleport）+ 清残留速度
+            Vector3 targetPos = transform.position + new Vector3(0f, specialUpDistance, 0f);
+            transform.position = targetPos;
+            velocity.x = 0f;
+            velocity.y = fighterData.jumpForce * 0.4f;      // // 上升缓冲，约 5.6 的向上速度
+            IsGrounded = false;   // 瞬移到空中，防 Idle 覆盖
+            specialUpInStartup = false;   // 已离地，起手期结束
+
+            // 3. 终点闪光
+            var endFx = ObjectPooler.Instance.Spawn(data.hitEffectPrefab, targetPos, Quaternion.identity);
+            if (endFx != null) ObjectPooler.Instance.Despawn(endFx, 1f);
+
+            // 4. 短暂无敌（复用重生无敌计时：respawnTimer 递减，归零自动关 isInvincible）
+            isInvincible = true;
+            respawnTimer = 0.2f;
         }
 
         // 【做什么】抓取入口（由 InputManager 调用）
@@ -867,7 +1002,14 @@ namespace SuperSmashLike.Core
             foreach (var c in hits)
             {
                 var plat = c.GetComponentInParent<Platform>();
-                if (plat != null) { plat.DropThrough(); break; }
+                if (plat != null)
+                {
+                    Physics2D.IgnoreCollision(mainCollider, plat.Collider, true);
+                    droppedPlatforms.Add(plat);
+                    isDroppingThrough = true;                        // 落穿期间不信 groundCheck
+                    velocity.y = -fighterData.fastFallSpeed * 0.5f;  // 立即给下坠初速，避免"悬在半空"的顿挫
+                    break;
+                }
             }
         }
 
@@ -1238,6 +1380,17 @@ namespace SuperSmashLike.Core
             return t >= comboWindowStart && t <= comboWindowEnd;
         }
 
+        // 【做什么】判断当前攻击是否处于"可必杀取消"窗口内
+        // 【为什么和 IsInComboWindow 同构】都读层 1 Action Layer 的动画进度，
+        //   自动兼容 Animator 倍速；只是窗口字段不同
+        private bool IsInSpecialCancelWindow()
+        {
+            if(attackData == null || !attackData.canSpecialCancel) return false;
+            AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(1);   // 层 1 = Action Layer
+            float t = info.normalizedTime % 1f;
+            return t >= specialCancelStart && t <= specialCancelEnd;
+        }
+
         // 【做什么】把蓄力基值映射到 Animator 的 AttackType
         // 【编号规约】挥击 xx → 蓄力 xx×10（SmashSide=20→200, SmashUp=21→210, SmashDown=22→220）
         private int GetChargeIndex(AttackData baseData)
@@ -1305,6 +1458,9 @@ namespace SuperSmashLike.Core
                 cancelIntoAttacks = src.cancelIntoAttacks,
                 canJumpCancel = src.canJumpCancel,
                 canSpecialCancel = src.canSpecialCancel,
+                projectilePrefab = src.projectilePrefab,
+                projectileSpawnOffset = src.projectileSpawnOffset,
+                projectileSpeed = src.projectileSpeed,
                 hitEffectPrefab = src.hitEffectPrefab,
                 hitSound = src.hitSound,
                 hitboxOffset = src.hitboxOffset,
