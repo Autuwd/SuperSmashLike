@@ -53,18 +53,14 @@ namespace SuperSmashLike.UI
         public void SetWinner(int winnerId) => _lastWinnerId = winnerId;
 
         // 【做什么】返回标题（按钮绑定）
-        // 【注意】场景名是占位，多场景流程未搭建
         public void OnReturnToTitle()
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene("TitleScene");
             GameManager.Instance.SwitchState(GameState.Title);
         }
 
         // 【做什么】重赛（按钮绑定）
-        // 【注意】场景名是占位，多场景流程未搭建
         public void OnRematch()
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene("BattleScene");
             GameManager.Instance.SwitchState(GameState.CharacterSelect);
         }
 

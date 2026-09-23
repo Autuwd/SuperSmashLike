@@ -126,6 +126,9 @@ public class FrameMeter : MonoBehaviour
     // 【做什么】每帧找目标斗士并刷新显示
     private void LateUpdate()
     {
+        if (GameManager.Instance != null && GameManager.Instance.CurrentGameState == GameState.Paused)
+            return;   // 暂停时帧数表不动
+
         if (cells == null) return;
 
         // 按 playerID 精确匹配，不用列表下标！

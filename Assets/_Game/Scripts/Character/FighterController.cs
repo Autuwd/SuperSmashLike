@@ -4,6 +4,7 @@ using SuperSmashLike.Managers;
 using SuperSmashLike.Stage;
 using System.Collections.Generic;
 using UnityEngine;
+using SuperSmashLike.Managers;
 
 // ============================================================
 // FighterController — 斗士角色主控制器（整个项目的核心类）
@@ -101,6 +102,7 @@ namespace SuperSmashLike.Core
         [Header("Shield")]
         public float currentShieldHP;  // 护盾当前耐久
         public bool isShielding;       // 是否在举盾
+        public GameObject shieldVisual;   // 护盾贴图（Prefab 里的 ShieldVisual），只在举盾时显示
 
         [Header("Parry")]
         public int parryWindowFrames = 10;           // 盾反窗口：举盾后 10 帧内被命中算盾反
@@ -119,6 +121,12 @@ namespace SuperSmashLike.Core
         [Header("Respawn")]
         public bool isInvincible;   // 重生后是否无敌
         public float respawnTimer;  // 无敌剩余时间
+        public float respawnLockTime = 1.6f;          // 重生"可见但不能动"的预告时长（秒）
+        private float respawnLockTimer;               // 运行时倒计时
+        private Renderer[] _visualRenderers;          // 闪烁用的渲染器缓存
+
+        // 对外只读：是否处于重生锁定（InputManager 用它挡输入）
+        public bool IsRespawnLocked => respawnLockTimer > 0f;
 
         [Header("Stock")]
         public int remainingStocks = 3;   // 剩余命数
@@ -189,6 +197,15 @@ namespace SuperSmashLike.Core
             if (hurtbox == null) hurtbox = GetComponentInChildren<Hurtbox>();
             if (mainCollider == null) mainCollider = GetComponent<Collider2D>();
 
+            _visualRenderers = GetComponentsInChildren<Renderer>(true);
+
+            if (shieldVisual == null)
+            {
+                var sv = transform.Find("ShieldVisual");
+                if (sv != null) shieldVisual = sv.gameObject;
+            }
+            if (shieldVisual != null) shieldVisual.SetActive(false);   // 初始不显示
+
             // hurtbox 需要知道属于哪个角色
             if (hurtbox != null) hurtbox.owner = this;
 
@@ -213,6 +230,18 @@ namespace SuperSmashLike.Core
         // 【做什么】每帧主循环：地面检测 → 特殊状态早退 → 计时器 → 重力 → 移动 → 动画 → 朝向
         private void Update()
         {
+            // ===== 0. 可玩性检测：非 Battle 状态或 Match 未激活 → 清输入缓冲 + 早退 =====
+            bool playable = GameManager.Instance != null
+                         && GameManager.Instance.CurrentGameState == GameState.Battle
+                         && MatchManager.Instance != null
+                         && MatchManager.Instance.IsMatchActive;
+
+            if (!playable)
+            {
+                inputBuffer.Clear();
+                return;
+            }
+
             // ===== 1. 地面检测与缓冲计时 =====
             bool groundHit = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
             IsGrounded = groundHit && !isDroppingThrough;   // 落穿中强制非地面
@@ -223,6 +252,7 @@ namespace SuperSmashLike.Core
                 if (visual != null) visual.gameObject.SetActive(false);
                 if (mainCollider != null) mainCollider.enabled = false;
                 if (hurtbox != null) hurtbox.gameObject.SetActive(false);
+                if (shieldVisual != null) shieldVisual.SetActive(false);
                 return;
             }
 
@@ -344,6 +374,17 @@ namespace SuperSmashLike.Core
             if (StateMachine.CurrentState == FighterState.Dead)
                 return;
 
+            bool playable = GameManager.Instance != null
+                         && GameManager.Instance.CurrentGameState == GameState.Battle
+                         && MatchManager.Instance != null
+                         && MatchManager.Instance.IsMatchActive;
+
+            if (!playable)
+            {
+                rb.velocity = Vector2.zero;
+                return;
+            }
+
             if (isInKnockback)
             {
                 // 击飞中离开过地面 → 标记（否则落地受身永不触发）
@@ -389,7 +430,14 @@ namespace SuperSmashLike.Core
 
             // 被打断清理：被击飞/眩晕/抓取等打断 → 蓄力作废
             if (isCharging && StateMachine.CurrentState != FighterState.Attack)
+            {
                 isCharging = false;
+                chargeTimer = 0f;
+                chargeBaseData = null;
+                isAttacking = false;                 // 防"被打断后还以基值出招"
+                attackFallbackTimer = 0f;
+                animator.SetInteger("AttackType", 0);
+            }
 
             // ===== 2. 攻击兜底计时 =====
             // 正常攻击结束靠动画事件 AttackFinished（动画播到末尾 → HitboxEventRelay → Hitbox → isAttacking=false）。
@@ -422,12 +470,15 @@ namespace SuperSmashLike.Core
             }
 
             // ===== 4. 重生无敌计时 =====
+            if (respawnLockTimer > 0f) respawnLockTimer -= Time.deltaTime;   // 锁定递减
+
             if (respawnTimer > 0f)
             {
                 respawnTimer -= Time.deltaTime;
                 if (respawnTimer <= 0f)
                     isInvincible = false;
             }
+            UpdateInvincibilityBlink();
 
             // ===== 5. 护盾耐久：举盾消耗，松盾恢复 =====
             if (isShielding)
@@ -745,6 +796,8 @@ namespace SuperSmashLike.Core
                 isShielding = true;
                 StateMachine.TransitionTo(FighterState.Shield);
 
+                if (shieldVisual != null) shieldVisual.SetActive(true);
+
                 if (SmashDebug.IsOn(DebugChannel.Combat))
                     SmashDebug.Log(DebugChannel.Combat, $"举盾 | shieldStartFrame={shieldStartFrame} 帧={Time.frameCount}");
             }
@@ -752,6 +805,8 @@ namespace SuperSmashLike.Core
             {
                 isShielding = false;
                 StateMachine.TransitionTo(FighterState.Idle);
+
+                if (shieldVisual != null) shieldVisual.SetActive(true);
             }
         }
 
@@ -1002,7 +1057,7 @@ namespace SuperSmashLike.Core
             foreach (var c in hits)
             {
                 var plat = c.GetComponentInParent<Platform>();
-                if (plat != null)
+                if (plat != null && plat.isPassThrough) // 【修复】只穿"可穿越"平台，实心地面不穿
                 {
                     Physics2D.IgnoreCollision(mainCollider, plat.Collider, true);
                     droppedPlatforms.Add(plat);
@@ -1245,6 +1300,58 @@ namespace SuperSmashLike.Core
             EnterStun(shieldBreakStunDuration);
         }
 
+        // 【做什么】新对局开始前把斗士完全恢复到初始状态
+        public void ResetForMatch(Vector3 position)
+        {
+            transform.position = position;
+            if (rb != null) rb.velocity = Vector2.zero;
+            velocity = Vector2.zero;
+            knockbackVelocity = Vector2.zero;
+            CurrentKnockbackSpeed = 0f;
+            isInKnockback = false;
+            CurrentDamage = 0f;
+            remainingStocks = GameManager.Instance.gameSettings.stockCount;   // 命数复位 ← 关键
+            currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;
+            isShielding = false;
+            isInvincible = false;        // 不给重生无敌
+            respawnTimer = 0f;
+            remainingJumps = fighterData.jumpCount;
+            inputBuffer.Clear();
+            StateMachine.Initialize(FighterState.Idle);
+
+            // 【修复】同步 Animator —— 否则它会一直播上一局的 Run/Fall
+            // （Update 在非战斗状态不跑，没人把状态推给 Animator）
+            if (animator != null)
+            {
+                animator.SetInteger("State", (int)FighterState.Idle);
+                animator.SetInteger("ComboStep", 0);
+            }
+            lastAnimState = FighterState.Idle;
+
+            // 恢复可见（防上一帧闪烁把 renderer.enabled 留在 false）
+            if (_visualRenderers != null)
+                foreach (var r in _visualRenderers) if (r != null) r.enabled = true;
+
+            if (visual != null) visual.gameObject.SetActive(true);
+            if (mainCollider != null) mainCollider.enabled = true;
+            if (hurtbox != null) hurtbox.gameObject.SetActive(true);
+            if (shieldVisual != null) shieldVisual.SetActive(false);
+        }
+
+        // 【做什么】无敌期间以 ~10Hz 闪烁；非无敌时确保可见
+        private void UpdateInvincibilityBlink()
+        {
+            if (visual == null) return;
+
+            bool visible = !isInvincible || (Mathf.Repeat(Time.time, 0.1f) < 0.05f);
+
+            if (_visualRenderers == null || _visualRenderers.Length == 0)
+                visual.gameObject.SetActive(visible);          // 兜底：整体开关
+            else
+                for (int i = 0; i < _visualRenderers.Length; i++)
+                    if (_visualRenderers[i] != null) _visualRenderers[i].enabled = visible;
+        }
+
         // 【做什么】重生：位置复位 + 清状态 + 短时间无敌 + 恢复渲染与碰撞
         // 【注意】必须用 StateMachine.Initialize(Idle) 而不是 TransitionTo ——
         //   Dead 状态无法 TransitionTo(Idle)，会被转换规则拒绝
@@ -1259,8 +1366,12 @@ namespace SuperSmashLike.Core
             knockbackVelocity = Vector2.zero;
             velocity = Vector2.zero;
             isInKnockback = false;
+            respawnLockTimer = respawnLockTime;        // 前段：可见但锁定
+            respawnTimer = respawnLockTime + GameManager.Instance.gameSettings.respawnTime;  // 无敌 = 锁定段 + 行动后延长段
             isInvincible = true;
-            respawnTimer = GameManager.Instance.gameSettings.respawnTime;
+            // 顺便确保渲染器可见（防止上次闪烁残留 enabled=false）
+            if (_visualRenderers != null)
+                foreach (var r in _visualRenderers) if (r != null) r.enabled = true;
             currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;
             isShielding = false;
             remainingJumps = fighterData.jumpCount;
@@ -1274,10 +1385,14 @@ namespace SuperSmashLike.Core
             if (visual != null) visual.gameObject.SetActive(true);
             if (mainCollider != null) mainCollider.enabled = true;
             if (hurtbox != null) hurtbox.gameObject.SetActive(true);
+            if (shieldVisual != null) shieldVisual.SetActive(false);
 
             if (SmashDebug.IsOn(DebugChannel.Match))
                 SmashDebug.Log(DebugChannel.Match,
                     $"{name} 重生完成 状态={StateMachine.CurrentState} visual.active={visual?.gameObject.activeSelf}");
+
+            SmashDebug.Log(DebugChannel.Match,
+                    $"[重生] lock={respawnLockTime} respawnTimer={respawnTimer} renderers={(_visualRenderers == null ? -1 : _visualRenderers.Length)} visual={(visual != null)}");
         }
 
         // 【做什么】击杀：扣命 + 进 Dead 状态 + 广播 OnKilled

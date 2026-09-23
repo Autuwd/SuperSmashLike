@@ -43,12 +43,18 @@ namespace SuperSmashLike.Managers
         [Header("HUD")]
         [SerializeField] private GameObject hudPrefab;   // 拖 UI_HUD.prefab（含 DamageDisplay/StockDisplay）
 
+        [Header("Countdown")]
+        private CountdownUI countdownUI;
+        public float fightHoldTime = 0.8f;                          // FIGHT! 显示时长
+
         #endregion
 
         #region 2. 运行时状态
 
         public float MatchTimeRemaining { get; private set; }  // 比赛剩余时间
         public bool IsMatchActive { get; private set; }        // 比赛是否进行中
+
+        public static MatchManager Instance { get; private set; }
 
         private DamageDisplay[] _damageDisplays = new DamageDisplay[4];
         private StockDisplay[] _stockDisplays = new StockDisplay[4];
@@ -59,6 +65,8 @@ namespace SuperSmashLike.Managers
         private Coroutine matchCoroutine;
         private bool _isMatchEnding;      // 防止 EndMatch 重入
         private bool _matchStarted;       // 防止重复开赛
+
+        private GameState _prevState = GameState.Title;   // 记录上一个状态，判断是否离开了 Battle
 
         // 委托缓存（订阅/退订对称的关键）
         private readonly Dictionary<FighterController, System.Action<float, FighterController>> _damagedHandlers = new();
@@ -77,11 +85,16 @@ namespace SuperSmashLike.Managers
 
         #region 4. Unity 生命周期
 
+        private void Awake()
+        {
+            Instance = this;
+        }
+
         private void Start()
         {
             settings = GameManager.Instance.gameSettings;
             MatchTimeRemaining = settings.matchTimeSeconds;
-            SpawnAndBindHUD();
+            if (_hudInstance == null) SpawnAndBindHUD();
         }
 
         private void OnDestroy()
@@ -104,11 +117,16 @@ namespace SuperSmashLike.Managers
         public void StartMatch()
         {
             IsMatchActive = false;
+            if (matchCoroutine != null) StopCoroutine(matchCoroutine);   // 防并行协程
+            MatchTimeRemaining = settings.matchTimeSeconds;              // 双保险
             matchCoroutine = StartCoroutine(MatchFlow());
         }
 
-        // 【做什么】结束比赛：广播结果 + 通知 GameManager 切结算 + 清理所有斗士注册
-        // 【注意】用快照遍历，避免"枚举期间修改集合"
+        // 【做什么】结束比赛：停表 + 广播结果 + 通知 GameManager 切结算
+        // 【注意】**不要在这里注销斗士** —— 斗士是场景常驻对象，
+        //   ActivePlayers 必须始终保留他们（相机跟随 / 帧数表 / 下一局都依赖）。
+        //   历史 Bug：注销后无人重新注册 → "结算 → 再战" 时 ActivePlayers 空 →
+        //   MatchFlow 存活检测(0≤1) 直接判结束 = 秒结束。
         public void EndMatch(int winnerID = -1)
         {
             if (_isMatchEnding) return;
@@ -119,13 +137,6 @@ namespace SuperSmashLike.Managers
             IsMatchActive = false;
             OnGameOver?.Invoke(winnerID);
             GameManager.Instance.EndMatch();   // 通知 GameManager 切换到结算状态
-
-            var snapshot = new List<FighterController>(GameManager.Instance.ActivePlayers);
-            foreach (var f in snapshot)
-            {
-                if (f != null) GameManager.Instance.UnregisterFighter(f);
-            }
-            _registeredFighters.Clear();
         }
 
         // 【做什么】重生指定玩家（对外入口，当前由 OnPlayerOutOfBounds 走协程路径）
@@ -167,13 +178,16 @@ namespace SuperSmashLike.Managers
         // 【阶段2】每帧扣时间；时间制到点结束；命数制存活 ≤1 结束
         private IEnumerator MatchFlow()
         {
+            // HUD 可能因 Start 顺序还没生成 → 惰性补生成，保证 countdownUI 就绪
+            if (_hudInstance == null) SpawnAndBindHUD();
+            if (countdownUI == null)
+                Debug.LogWarning("[MatchManager] countdownUI 为空，倒计时不会显示");
+
             // ===== 阶段1：开局倒计时 =====
-            for (int i = (int)countdownTime; i > 0; i--)
-            {
-                if (SmashDebug.IsOn(DebugChannel.Match))
-                    SmashDebug.Log(DebugChannel.Match, $"倒计时 {i}");
-                yield return new WaitForSeconds(1f);
-            }
+            if (countdownUI != null)
+                yield return countdownUI.Play((int)countdownTime, 1f, fightHoldTime);
+            else
+                yield return new WaitForSeconds(countdownTime);   // 兜底
 
             // ===== 阶段2：比赛进行 =====
             IsMatchActive = true;
@@ -356,6 +370,11 @@ namespace SuperSmashLike.Managers
             if (centerTimerText == null)
                 Debug.LogWarning("[MatchManager] Prefab 里找不到 CenterTimer 对象或缺少 TextMeshProUGUI");
 
+            // 自动找中间倒计时（Prefab 里叫 CenterCountdown）（整个 HUD 层级递归找组件，层级/名字都不敏感）
+            countdownUI = _hudInstance.GetComponentInChildren<CountdownUI>(true);
+            if (countdownUI == null)
+                Debug.LogWarning("[MatchManager] Prefab 里找不到 CenterCountdown 对象或缺少 CountdownUI 组件");
+
             // 只绑定双人 P1=0, P2=1
             for (int i = 0; i < 2; i++)
             {
@@ -447,13 +466,22 @@ namespace SuperSmashLike.Managers
         // 【做什么】GameManager 状态变化：进入 Battle 才真正开赛（针对"选完角色才开赛"的流程）
         private void OnGameStateChangedHandler(GameState newState)
         {
-            if (newState != GameState.Battle) return;
+            GameState prev = _prevState;
+            _prevState = newState;
 
-            if (!_matchStarted)
+            bool leavingMatch = prev == GameState.Battle
+                             || prev == GameState.Paused
+                             || prev == GameState.Result;
+
+            if ((newState == GameState.Title || newState == GameState.CharacterSelect) && leavingMatch)
             {
-                StartMatch();
-                _matchStarted = true;
+                ResetMatchData();     // 只有"打完/暂停后离开"才清零一次
+                return;
             }
+
+            if (newState != GameState.Battle) return;       // 其它状态照旧早退
+
+            if (!_matchStarted) { StartMatch(); _matchStarted = true; }
 
             var players = GameManager.Instance.ActivePlayers;
             foreach (var f in players) RebindFighterEvents(f);
@@ -468,6 +496,44 @@ namespace SuperSmashLike.Managers
         {
             if (spawnPoints == null || spawnPoints.Length == 0) return transform;
             return spawnPoints[Random.Range(0, spawnPoints.Length)];
+        }
+
+        // 【做什么】开局出生点：按 playerID 固定分配（P1→idx0, P2→idx1），可复现、不重叠
+        private Transform GetSpawnPointFor(FighterController f)
+        {
+            if (spawnPoints == null || spawnPoints.Length == 0) return transform;
+            return spawnPoints[Mathf.Abs(f.playerID) % spawnPoints.Length];
+        }
+
+        // 【做什么】重开后清零：比分、命数、伤害显示全部归位
+        public void ResetMatchData()
+        {
+            // 1. 停掉正在跑的比赛流程 —— 关键！否则旧 MatchFlow 协程还活着，对局会"继续"
+            if (matchCoroutine != null) { StopCoroutine(matchCoroutine); matchCoroutine = null; }
+            IsMatchActive = false;
+            _matchStarted = false;        // 关键：让下次进 Battle 能重新 StartMatch
+            _isMatchEnding = false;
+
+            if (countdownUI != null) countdownUI.Hide();   // 清掉残留的倒计时文字
+
+            // 2. 计时器复位
+            MatchTimeRemaining = settings.matchTimeSeconds;
+            OnTimerUpdated?.Invoke(MatchTimeRemaining);   // 立刻刷新倒计时文本
+
+            // 3. 斗士复位（伤害/命数/位置/状态）
+            foreach (var f in GameManager.Instance.ActivePlayers)
+                if (f != null) f.ResetForMatch(GetSpawnPointFor(f).position);   //开局固定出生点
+
+            // 4. HUD 复位（命数用 settings.stockCount，别硬编码 3）
+            for (int i = 0; i < _damageDisplays.Length; i++)
+                if (_damageDisplays[i] != null) _damageDisplays[i].SetPercent(0);
+            for (int i = 0; i < _stockDisplays.Length; i++)
+                if (_stockDisplays[i] != null) _stockDisplays[i].SetStock(settings.stockCount);
+
+            // 5. 注册表与 ActivePlayers 保持一致（别留空，否则 OnDestroy 退订会漏）
+            _registeredFighters.Clear();
+            foreach (var f in GameManager.Instance.ActivePlayers)
+                if (f != null) _registeredFighters.Add(f);
         }
 
         #endregion

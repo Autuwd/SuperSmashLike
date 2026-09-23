@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using SuperSmashLike.Core;
+using SuperSmashLike.Managers;
 
 // ============================================================
 // InputManager — 输入管理器
@@ -133,7 +134,9 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Shield").canceled += OnShieldCancelCtx;
             gameplayMap.FindAction("Grab").started += OnGrabCtx;
             gameplayMap.FindAction("Taunt").started += OnTauntCtx;
-            gameplayMap.FindAction("Pause").started += OnPauseCtx;
+            // 两个玩家的 InputManager 都会触发 → 只让 P1 订阅，避免"暂停→立即恢复"的双触发
+            if (fighterController != null && fighterController.playerID == 0)
+                gameplayMap.FindAction("Pause").started += OnPauseCtx;
 
             gameplayMap.Enable();
 
@@ -160,7 +163,8 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Shield").canceled -= OnShieldCancelCtx;
             gameplayMap.FindAction("Grab").started -= OnGrabCtx;
             gameplayMap.FindAction("Taunt").started -= OnTauntCtx;
-            gameplayMap.FindAction("Pause").started -= OnPauseCtx;
+            if (fighterController != null && fighterController.playerID == 0)
+                gameplayMap.FindAction("Pause").started -= OnPauseCtx;
 
             gameplayMap.Disable();
         }
@@ -232,6 +236,7 @@ namespace SuperSmashLike.InputSystem
         // 【做什么】暂停/恢复切换
         private void OnPauseCtx(InputAction.CallbackContext ctx)
         {
+            SmashDebug.Log(DebugChannel.Input, $"[Pause] 动作触发! state={GameManager.Instance.CurrentGameState}");
             if (GameManager.Instance.CurrentGameState == GameState.Battle)
                 GameManager.Instance.PauseGame();
             else if (GameManager.Instance.CurrentGameState == GameState.Paused)
@@ -247,6 +252,19 @@ namespace SuperSmashLike.InputSystem
         private void Update()
         {
             if (fighterController == null) return;
+
+            // 【修复】只在 Battle 且非"重生锁定"时才消费游戏输入；
+            // 暂停/标题/选人/结算一律清 latch 并早退（Update 不受 timeScale 影响）
+            bool playable = GameManager.Instance != null
+                         && GameManager.Instance.CurrentGameState == GameState.Battle
+                         && MatchManager.Instance != null
+                         && MatchManager.Instance.IsMatchActive;   // 倒计时期间 false → 不能动
+
+            if (!playable || fighterController.IsRespawnLocked)   // ← IsRespawnLocked 见问题2
+            {
+                ClearLatchedInput();
+                return;
+            }
 
             // ===== 1. 移动方向（无条件写入，Grab/Grabbed 状态下也要有值）=====
             fighterController.MoveInput = MoveInput;
@@ -420,5 +438,21 @@ namespace SuperSmashLike.InputSystem
         }
 
         #endregion
+
+        // 【做什么】清掉所有一次性 latch + 方向，防"非战斗期按的键"在进战斗/解锁瞬间爆发
+        private void ClearLatchedInput()
+        {
+            JumpPressed = false;
+            AttackPressed = false;
+            SpecialPressed = false;
+            GrabPressed = false;
+            TauntPressed = false;
+            chargePending = false;
+            specialChargePending = false;
+            pendingAttackDir = Vector2.zero;
+            pendingSpecialDir = Vector2.zero;
+            previousMoveInputY = false;
+            fighterController.MoveInput = Vector2.zero;   // 不给方向 → 不转身
+        }
     }
 }

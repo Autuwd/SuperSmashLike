@@ -25,6 +25,7 @@ namespace SuperSmashLike.UI
         [SerializeField] private GameObject characterSelectPanel;  // 选人面板
         [SerializeField] private GameObject resultsPanel;          // 结算面板
         [SerializeField] private GameObject hud;                   // 战斗 HUD
+        [SerializeField] private GameObject pausePanel;            // 暂停面板
 
         [Header("Match")]
         [SerializeField] private MatchManager matchManager;        // 场景里的 MatchManager 实例
@@ -124,11 +125,13 @@ namespace SuperSmashLike.UI
             bool showTitle = state == GameState.Title;
             bool showSelect = state == GameState.CharacterSelect;
             bool showResult = state == GameState.Result;
+            bool showPause = state == GameState.Paused;
             bool showHUD = state == GameState.Battle || state == GameState.Paused;
 
             if (titlePanel)           titlePanel.SetActive(showTitle);
             if (characterSelectPanel) characterSelectPanel.SetActive(showSelect);
             if (resultsPanel)         resultsPanel.SetActive(showResult);
+            if (pausePanel)           pausePanel.SetActive(showPause);
             if (hud)                  hud.SetActive(showHUD);
         }
 

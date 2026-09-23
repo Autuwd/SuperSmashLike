@@ -1,4 +1,4 @@
-using SuperSmashLike.Core;
+﻿using SuperSmashLike.Core;
 using SuperSmashLike.Managers;
 using UnityEngine;
 
@@ -137,7 +137,8 @@ namespace SuperSmashLike.Combat
             Time.timeScale = 0f;
             float duration = attackData.hitstopDuration * GameManager.Instance.gameSettings.hitstopScale;
             yield return new WaitForSecondsRealtime(duration);
-            Time.timeScale = 1f;
+            if (GameManager.Instance.CurrentGameState != GameState.Paused)  // 如果游戏被暂停了就不要恢复时间了
+                Time.timeScale = 1f;
         }
 
         #endregion

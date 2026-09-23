@@ -19,7 +19,7 @@ MonoBehaviour:
   enableTeamMode: 0
   blastZoneWidth: {x: 30, y: 30}
   blastZoneHeight: 20
-  respawnTime: 3
+  respawnTime: 1
   respawnInvincibilityFrames: 180
   hitstopScale: 1
   shieldSize: 1.5
@@ -29,3 +29,4 @@ MonoBehaviour:
   enableItems: 0
   itemSpawnInterval: 15
   maxItemsOnField: 5
+  selectableFighters: []
