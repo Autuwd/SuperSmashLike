@@ -125,6 +125,16 @@ namespace SuperSmashLike.Combat
             ObjectPooler.Instance.Despawn(gameObject);
         }
 
+        // 【做什么】在 Scene 视图中绘制投射物的命中盒（仅编辑器可见）
+        private void OnDrawGizmos()
+        {
+            var col = GetComponent<Collider2D>();
+            if (col == null) return;
+            Gizmos.color = new Color(1f, 0.4f, 0f, 0.9f);   // 与 HitboxPreview 同色
+            var b = col.bounds;                              // world space，已含位置偏移
+            Gizmos.DrawWireCube(b.center, b.size);
+        }
+
         #endregion
     }
 }

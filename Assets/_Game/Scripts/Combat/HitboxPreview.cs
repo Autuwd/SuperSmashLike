@@ -1,6 +1,7 @@
 using System.Reflection;
 using UnityEngine;
 using SuperSmashLike.Core;        // FighterData / AttackData 在这个命名空间
+using SuperSmashLike.Combat;      // FighterController / HitboxEventRelay 在这个命名空间
 
 // ============================================================
 // HitboxPreview — 判定框场景预览（挂在 AttackHitbox 上，和 Hitbox 同物体）
@@ -25,7 +26,7 @@ namespace SuperSmashLike.Combat
 
         [Tooltip("要预览的招式字段名。可选：jab1 jab2 jab3 / tiltSide tiltUp tiltDown / " +
                  "smashSide smashUp smashDown / aerialNeutral aerialForward aerialBack aerialUp aerialDown / " +
-                 "specialNeutral specialSide specialUp specialDown / throwForward throwBack throwUp throwDown")]
+                 "specialNeutral specialSide specialUp specialDown / grab / throwForward throwBack throwUp throwDown")]
         public string attackField = "tiltUp";
 
         #endregion
@@ -42,7 +43,46 @@ namespace SuperSmashLike.Combat
 
             Vector3 origin = transform.parent != null ? transform.parent.position : transform.position;
 
-            // 没配判定框 → 画个红点提醒
+            // ===== 分支 1：抓取（代码驱动，无 hitbox 配置）=====
+            // 与 FighterController.TryGrab 同算法：方框中心 = 角色 + 朝向
+            // 预览默认按右朝向画；翻转是运行时行为
+            if (attackField == "grab")
+            {
+                var fc = GetComponentInParent<FighterController>();
+                Vector2 size = fc != null ? fc.grabBoxSize : new Vector2(1.8f, 1.2f);
+                Vector2 off = fc != null ? fc.grabBoxOffset : new Vector2(0.9f, 0.6f);
+                Gizmos.DrawWireCube(origin + new Vector3(off.x, off.y, 0f), size);   // 默认右朝向预览
+                return;
+            }
+
+            // ===== 分支 2：投射物招（判定在弹体上，不画近战框）=====
+            // 注意用 projectileSpawnOffset，不是 hitboxOffset（FighterController L951-954 读的是它）
+            if (atk.projectilePrefab != null)
+            {
+                // 弹体出生点（默认右朝向预览）
+                Vector3 spawn = origin + new Vector3(atk.projectileSpawnOffset.x, atk.projectileSpawnOffset.y, 0f);
+                Gizmos.color = Color.red;
+                Gizmos.DrawWireSphere(spawn, 0.12f);
+
+                // 弹体碰撞范围：从预制体读真实 Collider2D（所见即所得）
+                var col = atk.projectilePrefab.GetComponent<Collider2D>();
+                if (col != null)
+                {
+                    Gizmos.color = new Color(1f, 0.4f, 0f, 0.9f);
+                    Vector3 colCenter = spawn + new Vector3(col.offset.x, col.offset.y, 0f);
+                    if (col is BoxCollider2D box)
+                        Gizmos.DrawWireCube(colCenter, new Vector3(box.size.x, box.size.y, 0.05f));
+                    else if (col is CircleCollider2D circ)
+                        Gizmos.DrawWireSphere(colCenter, circ.radius);
+                }
+
+                // 飞行方向指示（默认右；SD 石头有远近分档 farSpecialRange，此处画默认 1f）
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawLine(spawn, spawn + new Vector3(1.5f, 0f, 0f));
+                return;
+            }
+
+            // ===== 分支 3：近战招（原有逻辑，不动）=====
             if (atk.hitboxSize == Vector2.zero)
             {
                 Gizmos.color = Color.red;
@@ -50,7 +90,6 @@ namespace SuperSmashLike.Combat
                 return;
             }
 
-            // 与 HitboxEventRelay.Activate() 同一套算法，保证所见即所得
             Vector3 center = origin + new Vector3(atk.hitboxOffset.x, atk.hitboxOffset.y, 0f);
             Gizmos.color = new Color(1f, 0.4f, 0f, 0.9f);
             Gizmos.DrawWireCube(center, new Vector3(atk.hitboxSize.x, atk.hitboxSize.y, 0.05f));

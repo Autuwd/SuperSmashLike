@@ -92,6 +92,9 @@ namespace SuperSmashLike.Core
         public Vector2 knockbackVelocity;  // 击飞速度向量（由 DamageSystem 计算）
         public bool isInKnockback;         // 是否处于击飞飞行中
 
+        [Header("Hit")]
+        public float hitReactKnockSpeedThreshold = 3f;  // 低于 = 轻击 → Hit（初值待实测）
+
         [Header("Feel")]
         public float gravityScale = 2.2f;         // 角色专属重力倍率（默认×1=标准重力）
         public float fastFallMultiplier = 1.6f;   // 快速下落速度倍率
@@ -107,14 +110,15 @@ namespace SuperSmashLike.Core
         [Header("Parry")]
         public int parryWindowFrames = 10;           // 盾反窗口：举盾后 10 帧内被命中算盾反
         public float parryStunDuration = 1.2f;       // 攻击者被盾反后的眩晕时长(≥1s)
-        public float shieldBreakStunDuration = 1.5f; // 破盾眩晕时长
+        public float shieldBreakStunDuration = 3f; // 破盾眩晕时长
 
         [Header("Tech")]
         public float techBounceSpeed = 6f;    // 受身成功小反弹速度
         public float techInvincibleTime = 0.5f;  // 受身无敌时长（秒）
 
         [Header("Grab")]
-        public float grabRange = 1.2f;         // 抓取距离（可 Inspector 调）
+        public Vector2 grabBoxSize = new Vector2(1.8f, 1.2f);   // 尺寸：x=前伸长，y=高
+        public Vector2 grabBoxOffset = new Vector2(0.9f, 0.6f); // 位置：方框中心相对角色的偏移（x=前后，y=高低）
         public float grabHoldDistance = 1.0f;  // 被抓方锁在面前的间距
         public int escapeMashThreshold = 8;    // 连按攻击 8 次挣脱
 
@@ -150,6 +154,7 @@ namespace SuperSmashLike.Core
 
         // 连段守卫：本次攻击的判定框是否已打开过（防连段提前取消吞掉判定）
         public bool hitboxActivatedThisAttack;
+        public float heavyStunDuration = 1.1f;   // 重击硬直，对齐 Stun.anim
 
         // 投掷方向枚举
         public enum ThrowDir { Forward, Back, Up, Down }
@@ -164,6 +169,7 @@ namespace SuperSmashLike.Core
         private int lastTapDir;             // 当前是否在按住方向（0=松开）
         private int shieldStartFrame = -999;// 举盾启动帧号（盾反窗口起点，用帧号不用秒）
         private float stunTimer;            // Stun 剩余时间
+        private float hitstunTimer;         // Hit 硬直剩余时间
         private int escapeMashCount;        // 挣扎连按计数
         private float grabTimer;            // 抓取超时计时器（兜底，防异常断链）
         private bool grabWhiff;             // 本次 Grab 是抓空（没抓到人）
@@ -373,7 +379,8 @@ namespace SuperSmashLike.Core
         {
             if (StateMachine.CurrentState == FighterState.Dead)
                 return;
-
+            
+            //角色是否可操作
             bool playable = GameManager.Instance != null
                          && GameManager.Instance.CurrentGameState == GameState.Battle
                          && MatchManager.Instance != null
@@ -490,6 +497,14 @@ namespace SuperSmashLike.Core
             else if (currentShieldHP < GameManager.Instance.gameSettings.shieldMaxHP)
             {
                 currentShieldHP += GameManager.Instance.gameSettings.shieldRegenPerSecond * Time.deltaTime;
+            }
+
+            // ===== 5.5 受击小硬直倒计时 =====
+            if (StateMachine.CurrentState == FighterState.Hit && hitstunTimer > 0f)
+            {
+                hitstunTimer -= Time.deltaTime;
+                if (hitstunTimer <= 0f)
+                    StateMachine.TransitionTo(IsGrounded ? FighterState.Idle : FighterState.Fall);
             }
 
             // ===== 6. 眩晕倒计时（含护盾起身）=====
@@ -1002,11 +1017,11 @@ namespace SuperSmashLike.Core
             if (grabTarget != null) return;                                  // 已在抓，别重复
             if (StateMachine.CurrentState == FighterState.Grab) return;      // 已在抓取状态
 
-            // ===== 前方检测：角色面前一个圆 =====
-            // 中心点 = 角色位置 + 面向方向 × grabRange（把圆推到身前）
+            // ===== 前方检测：角色面前一个方框 =====
+            // 方框中心 = 角色位置 + (朝向×grabBoxOffset.x, grabBoxOffset.y)
             Vector2 center = (Vector2)transform.position
-                + new Vector2(isFacingRight ? 1f : -1f, 0f) * grabRange;
-            Collider2D[] hits = Physics2D.OverlapCircleAll(center, grabRange);
+                            + new Vector2(isFacingRight ? grabBoxOffset.x : -grabBoxOffset.x, grabBoxOffset.y);
+            Collider2D[] hits = Physics2D.OverlapBoxAll(center, grabBoxSize, 0f);
 
             // ===== 找可抓目标 =====
             FighterController victim = null;
@@ -1155,18 +1170,25 @@ namespace SuperSmashLike.Core
                 return;              // 关键：盾防走完直接返回，不再掉血/击飞
             }
 
-            // ===== 应用伤害（含全局缩放系数）=====
-            float finalDamage = attack.damage * GameManager.Instance.gameSettings.damageRatio;
-            CurrentDamage += finalDamage;
-            OnDamaged?.Invoke(finalDamage, attacker);
-
-            // ===== 计算并应用击飞 =====
+            // ===== 计算击飞 =====
             float knockSpeed = DamageSystem.CalculateKnockbackVelocity(
                 attack, CurrentDamage, fighterData.weight);
             Vector2 knockDir = DamageSystem.CalculateKnockbackDirection(
                 attack, transform.position - attacker.transform.position);
 
-            ApplyKnockback(knockDir, knockSpeed);
+            // ===== 受击分级 =====
+            if (isInKnockback)
+            {
+                ApplyKnockback(knockDir, knockSpeed);   // 已在击飞中不打断
+            }
+            else if (knockSpeed < hitReactKnockSpeedThreshold)   // < 3f
+            {
+                EnterHitstun(DamageSystem.CalculateHitstun(knockSpeed));   // 轻击 → Hit
+            }
+            else
+            {
+                ApplyKnockback(knockDir, knockSpeed);   // 重击/Smash → 击飞
+            }
         }
 
         // 【做什么】把击飞速度和方向应用到角色上
@@ -1290,6 +1312,14 @@ namespace SuperSmashLike.Core
         {
             stunTimer = duration;
             StateMachine.TransitionTo(FighterState.Stun);
+        }
+
+        // 【做什么】进入受击小硬直（Hit 态，播 HitReact 动画）
+        // 【注意】不设 isInKnockback —— 轻击不禁移动/重力，只是短暂僵直
+        public void EnterHitstun(float duration)
+        {
+            hitstunTimer = duration;
+            StateMachine.TransitionTo(FighterState.Hit);
         }
 
         // 【做什么】破盾：护盾耐久归零时触发，进大眩晕
@@ -1591,10 +1621,18 @@ namespace SuperSmashLike.Core
         // 【做什么】在 Scene 视图画出地面检测范围（绿=着地 / 红=离地）
         private void OnDrawGizmosSelected()
         {
-            if (groundCheck == null) return;
+            // 地面检测范围（绿=着地 / 红=离地）
+            if (groundCheck != null)
+            {
+                Gizmos.color = IsGrounded ? Color.green : Color.red;
+                Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            }
 
-            Gizmos.color = IsGrounded ? Color.green : Color.red;
-            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            // 抓取检测范围方框中心 = 角色位置 + (朝向×grabBoxOffset.x, grabBoxOffset.y)
+            Vector3 grabCenter = transform.position
+                + new Vector3(isFacingRight ? grabBoxOffset.x : -grabBoxOffset.x, grabBoxOffset.y, 0f);
+            Gizmos.color = new Color(0.3f, 0.8f, 0.3f, 0.8f);
+            Gizmos.DrawWireCube(grabCenter, grabBoxSize);
         }
 
         #endregion

@@ -80,10 +80,17 @@ namespace SuperSmashLike.Core
                 return target == FighterState.Fall || target == FighterState.Dead
                     || target == FighterState.Idle || target == FighterState.Hit;
 
-            // 受击/眩晕中只能：落地 / 继续被击飞 / 死亡
-            if (CurrentState == FighterState.Hit || CurrentState == FighterState.Stun)
+            // 受击小硬直中：可被连击刷新(→Hit) / 升级(→Stun) / 击飞(→Knockback) / 落地 / 死亡
+            if (CurrentState == FighterState.Hit)
                 return target == FighterState.Idle || target == FighterState.Fall
-                    || target == FighterState.Knockback || target == FighterState.Dead;
+                    || target == FighterState.Knockback || target == FighterState.Dead
+                    || target == FighterState.Hit || target == FighterState.Stun;
+
+            // 大硬直中：只能刷新(→Stun) / 被击飞 / 落地 / 死亡 —— 不降级
+            if (CurrentState == FighterState.Stun)
+                return target == FighterState.Idle || target == FighterState.Fall
+                    || target == FighterState.Knockback || target == FighterState.Dead
+                    || target == FighterState.Stun;
 
             // 防御中只能：放下盾 / 被打出盾硬直 / 出抓取
             if (CurrentState == FighterState.Shield)

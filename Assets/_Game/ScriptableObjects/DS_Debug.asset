@@ -16,7 +16,7 @@ MonoBehaviour:
   onlyWarnings: 0
   combat: 0
   state: 0
-  input: 1
+  input: 0
   grab: 0
   movement: 0
   match: 0

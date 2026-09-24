@@ -565,6 +565,7 @@ MonoBehaviour:
   specialCancelEnd: 0.6
   knockbackVelocity: {x: 0, y: 0}
   isInKnockback: 0
+  hitReactKnockSpeedThreshold: 3
   gravityScale: 2.2
   fastFallMultiplier: 3
   jumpBufferTime: 0.1
@@ -572,9 +573,10 @@ MonoBehaviour:
   doubleTapWindow: 0.25
   currentShieldHP: 0
   isShielding: 0
+  shieldVisual: {fileID: 0}
   parryWindowFrames: 10
   parryStunDuration: 1.2
-  shieldBreakStunDuration: 1.5
+  shieldBreakStunDuration: 3
   techBounceSpeed: 6
   techInvincibleTime: 0.5
   grabRange: 1.2
@@ -582,11 +584,13 @@ MonoBehaviour:
   escapeMashThreshold: 8
   isInvincible: 0
   respawnTimer: 0
+  respawnLockTime: 1.6
   remainingStocks: 3
   velocity: {x: 0, y: 0}
   grabTarget: {fileID: 0}
   grabber: {fileID: 0}
   hitboxActivatedThisAttack: 0
+  heavyStunDuration: 1.1
 --- !u!114 &2503629124996281800
 MonoBehaviour:
   m_ObjectHideFlags: 0
