@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 123140e5ee3ca3e4ca0f6d361d852ac6, type: 3}
   m_Name: FD_Barbarian
   m_EditorClassIdentifier: 
-  fighterName: Barbarian
-  portraitIcon: {fileID: 0}
+  fighterName: "\u91CE\u86EE\u4EBA"
+  portraitIcon: {fileID: 21300000, guid: 7b915b45472f6544fa19888081dd4a89, type: 3}
   weight: 120
   walkSpeed: 4
   runSpeed: 6
@@ -27,12 +27,14 @@ MonoBehaviour:
   weightClass: 3
   uiColor: {r: 0.17051923, g: 1, b: 0, a: 1}
   jab1:
+    animIndex: 0
     attackName: Jab1
     damage: 3
     shieldDamage: 3
     knockbackAngle: 80
     knockbackBase: 10
     knockbackGrowth: 20
+    hitstunOverride: -1
     startupTime: 0.05
     activeTime: 0.05
     recoveryTime: 0.1
@@ -42,15 +44,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 1793199471691246, guid: 5e219a54f48ed0a4aa9dc8af25f90c38, type: 3}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0.8, y: 1.3}
     hitboxSize: {x: 1.2, y: 0.6}
+    inputCommand: 
+    description: 
   jab2:
+    animIndex: 0
     attackName: Jab2
     damage: 3
     shieldDamage: 3
     knockbackAngle: 80
     knockbackBase: 15
     knockbackGrowth: 25
+    hitstunOverride: -1
     startupTime: 0.05
     activeTime: 0.05
     recoveryTime: 0.1
@@ -60,15 +69,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 1793199471691246, guid: 5e219a54f48ed0a4aa9dc8af25f90c38, type: 3}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0.8, y: 1.3}
     hitboxSize: {x: 1.2, y: 0.6}
+    inputCommand: 
+    description: 
   jab3:
+    animIndex: 0
     attackName: Jab3
     damage: 5
     shieldDamage: 3
     knockbackAngle: 70
     knockbackBase: 30
     knockbackGrowth: 40
+    hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.05
     recoveryTime: 0.15
@@ -78,15 +94,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 1793199471691246, guid: 5e219a54f48ed0a4aa9dc8af25f90c38, type: 3}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 1, y: 1.3}
     hitboxSize: {x: 1.4, y: 0.7}
+    inputCommand: 
+    description: 
   tiltSide:
+    animIndex: 0
     attackName: SideTilt
     damage: 8
     shieldDamage: 3
     knockbackAngle: 40
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.07
     recoveryTime: 0.2
@@ -96,15 +119,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 1793199471691246, guid: 5e219a54f48ed0a4aa9dc8af25f90c38, type: 3}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0.9, y: 0.6}
     hitboxSize: {x: 1.2, y: 0.7}
+    inputCommand: 
+    description: 
   tiltUp:
+    animIndex: 0
     attackName: UpTilt
     damage: 7
     shieldDamage: 3
     knockbackAngle: 90
     knockbackBase: 35
     knockbackGrowth: 45
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.08
     recoveryTime: 0.2
@@ -114,15 +144,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 1.4}
     hitboxSize: {x: 0.9, y: 1.1}
+    inputCommand: 
+    description: 
   tiltDown:
+    animIndex: 0
     attackName: DownTilt
     damage: 6
     shieldDamage: 3
     knockbackAngle: 0
     knockbackBase: 30
     knockbackGrowth: 40
+    hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.07
     recoveryTime: 0.17
@@ -132,15 +169,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0.2}
     hitboxSize: {x: 1.1, y: 0.6}
+    inputCommand: 
+    description: 
   smashSide:
+    animIndex: 0
     attackName: SmashSide
     damage: 15
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 50
     knockbackGrowth: 80
+    hitstunOverride: -1
     startupTime: 0.3
     activeTime: 0.07
     recoveryTime: 0.3
@@ -150,15 +194,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 1.1, y: 0.6}
     hitboxSize: {x: 1.5, y: 0.9}
+    inputCommand: 
+    description: 
   smashUp:
+    animIndex: 0
     attackName: SmashUp
     damage: 14
     shieldDamage: 3
     knockbackAngle: 90
     knockbackBase: 55
     knockbackGrowth: 75
+    hitstunOverride: -1
     startupTime: 0.28
     activeTime: 0.08
     recoveryTime: 0.28
@@ -168,15 +219,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 1.7}
     hitboxSize: {x: 1, y: 1.4}
+    inputCommand: 
+    description: 
   smashDown:
+    animIndex: 0
     attackName: SmashDown
     damage: 13
     shieldDamage: 3
     knockbackAngle: 0
     knockbackBase: 50
     knockbackGrowth: 70
+    hitstunOverride: -1
     startupTime: 0.25
     activeTime: 0.07
     recoveryTime: 0.3
@@ -186,15 +244,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: -0.3}
     hitboxSize: {x: 1.2, y: 0.7}
+    inputCommand: 
+    description: 
   aerialNeutral:
+    animIndex: 0
     attackName: AirN
     damage: 8
     shieldDamage: 3
     knockbackAngle: 70
     knockbackBase: 35
     knockbackGrowth: 40
+    hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.15
     recoveryTime: 0.15
@@ -204,15 +269,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 1}
     hitboxSize: {x: 1.6, y: 0.8}
+    inputCommand: 
+    description: 
   aerialForward:
+    animIndex: 0
     attackName: AirF
     damage: 10
     shieldDamage: 3
     knockbackAngle: 50
     knockbackBase: 40
     knockbackGrowth: 55
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.18
@@ -222,15 +294,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0.9, y: 0.9}
     hitboxSize: {x: 1.2, y: 0.7}
+    inputCommand: 
+    description: 
   aerialBack:
+    animIndex: 0
     attackName: AirB
     damage: 10
     shieldDamage: 3
     knockbackAngle: 60
     knockbackBase: 40
     knockbackGrowth: 55
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.18
@@ -240,15 +319,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0.9, y: 0.9}
     hitboxSize: {x: 1.2, y: 0.7}
+    inputCommand: 
+    description: 
   aerialUp:
+    animIndex: 0
     attackName: AirU
     damage: 8
     shieldDamage: 3
     knockbackAngle: 90
     knockbackBase: 35
     knockbackGrowth: 45
+    hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.15
     recoveryTime: 0.2
@@ -258,15 +344,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 1.6}
     hitboxSize: {x: 0.8, y: 1.2}
+    inputCommand: 
+    description: 
   aerialDown:
+    animIndex: 0
     attackName: AirD
     damage: 9
     shieldDamage: 3
     knockbackAngle: 0
     knockbackBase: 40
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.15
     recoveryTime: 0.12
@@ -276,15 +369,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0.3}
     hitboxSize: {x: 1, y: 0.6}
+    inputCommand: 
+    description: 
   specialNeutral:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 20
     knockbackBase: 3
     knockbackGrowth: 10
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -294,15 +394,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   specialSide:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -312,15 +419,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   specialUp:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -330,15 +444,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   specialDown:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -348,15 +469,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   grab:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -366,15 +494,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwForward:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -384,15 +519,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwBack:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -402,15 +544,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwUp:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -420,15 +569,22 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwDown:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -438,5 +594,10 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 

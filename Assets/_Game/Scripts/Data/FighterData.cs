@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // ============================================================
@@ -85,6 +86,62 @@ namespace SuperSmashLike.Core
         public AttackData throwDown;         // 下投
 
         #endregion
+
+        [System.Serializable]
+        public class MoveListEntry
+        {
+            public string name; 
+            public string input; 
+            public float damage;
+            public int startupF, activeF, recoveryF;
+            public string description;
+            public Sprite icon;
+            public MoveCategory category;   // 所属 Tab
+        }
+
+        public List<MoveListEntry> GetMoveEntries()
+        {
+            var list = new List<MoveListEntry>();
+            AddEntry(list, jab1, MoveCategory.Jab); AddEntry(list, jab2, MoveCategory.Jab); AddEntry(list, jab3, MoveCategory.Jab);
+            AddEntry(list, tiltSide, MoveCategory.Tilt); AddEntry(list, tiltUp, MoveCategory.Tilt); AddEntry(list, tiltDown, MoveCategory.Tilt);
+            AddEntry(list, smashSide, MoveCategory.Smash); AddEntry(list, smashUp, MoveCategory.Smash); AddEntry(list, smashDown, MoveCategory.Smash);
+            AddEntry(list, aerialNeutral, MoveCategory.Aerial); AddEntry(list, aerialForward, MoveCategory.Aerial);
+            AddEntry(list, aerialBack, MoveCategory.Aerial); AddEntry(list, aerialUp, MoveCategory.Aerial); AddEntry(list, aerialDown, MoveCategory.Aerial);
+            AddEntry(list, specialNeutral, MoveCategory.Special); AddEntry(list, specialSide, MoveCategory.Special);
+            AddEntry(list, specialUp, MoveCategory.Special); AddEntry(list, specialDown, MoveCategory.Special);
+            AddEntry(list, grab, MoveCategory.Grab);
+            AddEntry(list, throwForward, MoveCategory.Grab); AddEntry(list, throwBack, MoveCategory.Grab);
+            AddEntry(list, throwUp, MoveCategory.Grab); AddEntry(list, throwDown, MoveCategory.Grab);
+            return list;
+        }
+
+        private void AddEntry(List<MoveListEntry> list, AttackData ad, MoveCategory cat)
+        {
+            if (ad == null) return;                    // 未配置槽位直接跳过
+            list.Add(new MoveListEntry
+            {
+                name = string.IsNullOrEmpty(ad.attackName) ? "(未命名)" : ad.attackName,
+                input = ad.inputCommand,
+                damage = ad.damage,
+                startupF = Mathf.RoundToInt(ad.startupTime * 60f),   // 秒→帧（1/60s）
+                activeF = Mathf.RoundToInt(ad.activeTime * 60f),
+                recoveryF = Mathf.RoundToInt(ad.recoveryTime * 60f),
+                description = ad.description,
+                category = cat                          // 新增
+            });
+        }
+    }
+
+    // 出招表分类（决定条目显示在哪个 Tab）
+    public enum MoveCategory
+    {
+        Jab,        // 轻击
+        Tilt,       // 强击
+        Smash,      // 蓄力
+        Aerial,     // 空中
+        Special,    // 必杀
+        Grab,       // 抓投（含 4 方向投）
+        Throw,      // 投（如需与抓分开；前 6 个已够用可不加）
     }
 
     // 体重分类（当前只用于 Editor 显示，未参与逻辑）
@@ -183,6 +240,11 @@ namespace SuperSmashLike.Core
         public Vector2 hitboxSize;     // 判定框大小（为 0 时攻击无判定，工具会告警）
 
         #endregion
+
+        [Header("Move List")]
+        public string inputCommand = "";   // 输入指令："A" / "←/→ + A" / "↑ + A（蓄力）"...
+        public string description = "";    // 招式一句话说明（选填）
+        public Sprite moveIcon;      // 招式图标（选填，null 则条目不显示图）
 
         // 总持续时间（前摇 + 判定 + 后摇）
         public float TotalDuration => startupTime + activeTime + recoveryTime;

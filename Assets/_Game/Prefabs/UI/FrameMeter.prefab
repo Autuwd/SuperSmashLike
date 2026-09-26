@@ -2337,8 +2337,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "\u53D1\u52A8 -- | \u603B\u8BA1 -- | \u5E27\u6570\u5DEE 0F"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: b44396079db355247870be3addd9e4db, type: 2}
-  m_sharedMaterial: {fileID: 8965260884300151984, guid: b44396079db355247870be3addd9e4db, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: cc70130d300198f40849463d2ebf6882, type: 2}
+  m_sharedMaterial: {fileID: 8965260884300151984, guid: cc70130d300198f40849463d2ebf6882, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []

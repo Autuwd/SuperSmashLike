@@ -29,4 +29,8 @@ MonoBehaviour:
   enableItems: 0
   itemSpawnInterval: 15
   maxItemsOnField: 5
-  selectableFighters: []
+  selectableFighters:
+  - {fileID: 11400000, guid: 6490100909cc21148a2eb689bf4bbe67, type: 2}
+  - {fileID: 11400000, guid: 134060f106c90dc4ba8965a10df036d3, type: 2}
+  - {fileID: 11400000, guid: b2801cf0e8fabad4cb6a94c5f895d74c, type: 2}
+  - {fileID: 11400000, guid: a57e40146fe003540b3282e245734b85, type: 2}

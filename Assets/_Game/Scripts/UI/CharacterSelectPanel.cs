@@ -66,8 +66,8 @@ namespace SuperSmashLike.UI
 
                 // 填充卡面数据
                 int captured = i;   // 闭包捕获：必须存局部变量，否则所有卡都用同一个 i
-                card.GetComponentInChildren<Image>().sprite = fd.portraitIcon;
-                card.GetComponentInChildren<TextMeshProUGUI>().text = fd.fighterName;
+                CardView view = card.GetComponent<CardView>();
+                view.SetData(fd, () => OnCardSelected(fd, captured));
 
                 // 点击卡 → 为该玩家选定角色并进入战斗
                 card.GetComponent<Button>().onClick.AddListener(() => OnCardSelected(fd, captured));

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using SuperSmashLike.Core;
 
@@ -13,10 +13,9 @@ namespace SuperSmashLike.UI
         [SerializeField] private Button restartButton;
         [SerializeField] private Button quitButton;
         [SerializeField] private Button moveListButton;
-        [SerializeField] private Button moveListBackButton;
 
         [Header("Move List")]
-        [SerializeField] private GameObject moveListPanel;
+        [SerializeField] private MoveListUI moveListUI;
 
         #endregion
 
@@ -33,14 +32,12 @@ namespace SuperSmashLike.UI
                 quitButton.onClick.AddListener(OnQuit);
             if (moveListButton != null) 
                 moveListButton.onClick.AddListener(OnMoveList);
-            if (moveListBackButton != null) 
-                moveListBackButton.onClick.AddListener(OnMoveListBack);
         }
 
         // 每次暂停面板弹出 → 出招表复位为关闭态（防"上次开着、这次还开着"）
         private void OnEnable()
         {
-            if (moveListPanel != null) moveListPanel.SetActive(false);
+            if (moveListUI != null) moveListUI.Close();
         }
 
         #endregion
@@ -65,14 +62,16 @@ namespace SuperSmashLike.UI
         // 【做什么】打开出招表 —— 注意：绝不调 ResumeGame，游戏要保持暂停
         private void OnMoveList()
         {
-            if (moveListPanel != null) moveListPanel.SetActive(true);
+            GameSettings gs = GameManager.Instance.gameSettings;
+
+            // 优先取选人缓存；没走过选人流程时回退到场上第一个角色
+            var fd = gs.GetSelection(0);
+            if (fd == null && GameManager.Instance.ActivePlayers.Count > 0)
+                fd = GameManager.Instance.ActivePlayers[0].fighterData;
+
+            if (moveListUI != null) moveListUI.Show(fd);
         }
 
-        // 【做什么】关闭出招表 → 回到暂停菜单
-        private void OnMoveListBack()
-        {
-            if (moveListPanel != null) moveListPanel.SetActive(false);
-        }
 
         // 【做什么】返回标题 —— 同上思路
         private void OnQuit()

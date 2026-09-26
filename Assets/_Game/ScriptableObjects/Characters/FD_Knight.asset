@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 123140e5ee3ca3e4ca0f6d361d852ac6, type: 3}
   m_Name: FD_Knight
   m_EditorClassIdentifier: 
-  fighterName: Knight
-  portraitIcon: {fileID: 0}
+  fighterName: "\u5251\u58EB"
+  portraitIcon: {fileID: 21300000, guid: 2d3d244b2c527b04ba431a31bcbbe1fe, type: 3}
   weight: 110
   walkSpeed: 2.8
   runSpeed: 5.5
@@ -49,6 +49,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.6, y: 1.16}
     hitboxSize: {x: 1.3, y: 0.59}
+    inputCommand: 
+    description: 
   jab2:
     animIndex: 1
     attackName: Jab2
@@ -72,6 +74,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.7, y: 1.1}
     hitboxSize: {x: 1.3, y: 0.5}
+    inputCommand: 
+    description: 
   jab3:
     animIndex: 2
     attackName: Jab3
@@ -95,6 +99,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 1.18, y: 1.1}
     hitboxSize: {x: 1.2, y: 0.6}
+    inputCommand: 
+    description: 
   tiltSide:
     animIndex: 10
     attackName: SideTilt
@@ -118,6 +124,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.8, y: 1}
     hitboxSize: {x: 1.2, y: 0.6}
+    inputCommand: 
+    description: 
   tiltUp:
     animIndex: 11
     attackName: UpTilt
@@ -141,6 +149,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.45, y: 1.54}
     hitboxSize: {x: 1.11, y: 0.74}
+    inputCommand: 
+    description: 
   tiltDown:
     animIndex: 12
     attackName: DownTilt
@@ -164,6 +174,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.61, y: 0.88}
     hitboxSize: {x: 1.2, y: 1.24}
+    inputCommand: 
+    description: 
   smashSide:
     animIndex: 20
     attackName: SmashSide
@@ -187,6 +199,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.8, y: 1}
     hitboxSize: {x: 1.2, y: 0.6}
+    inputCommand: 
+    description: 
   smashUp:
     animIndex: 21
     attackName: SmashUp
@@ -210,6 +224,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.45, y: 1.54}
     hitboxSize: {x: 1.11, y: 0.74}
+    inputCommand: 
+    description: 
   smashDown:
     animIndex: 22
     attackName: SmashDown
@@ -233,6 +249,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.61, y: 0.88}
     hitboxSize: {x: 1.2, y: 1.24}
+    inputCommand: 
+    description: 
   aerialNeutral:
     animIndex: 30
     attackName: AirN
@@ -256,6 +274,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.46, y: 1.56}
     hitboxSize: {x: 0.83, y: 0.58}
+    inputCommand: 
+    description: 
   aerialForward:
     animIndex: 31
     attackName: AirF
@@ -279,6 +299,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.62, y: 1.42}
     hitboxSize: {x: 1.2, y: 0.85}
+    inputCommand: 
+    description: 
   aerialBack:
     animIndex: 32
     attackName: AirB
@@ -302,6 +324,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.62, y: 1.42}
     hitboxSize: {x: 1.2, y: 0.85}
+    inputCommand: 
+    description: 
   aerialUp:
     animIndex: 33
     attackName: AirU
@@ -325,6 +349,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.12, y: 1.6}
     hitboxSize: {x: 1.22, y: 1.2}
+    inputCommand: 
+    description: 
   aerialDown:
     animIndex: 34
     attackName: AirD
@@ -348,6 +374,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.73, y: 1.08}
     hitboxSize: {x: 1.15, y: 0.6}
+    inputCommand: 
+    description: 
   specialNeutral:
     animIndex: 40
     attackName: SpecialN
@@ -371,6 +399,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0.8, y: 1}
     hitboxSize: {x: 1.2, y: 0.8}
+    inputCommand: 
+    description: 
   specialSide:
     animIndex: 41
     attackName: SpecialS
@@ -394,6 +424,8 @@ MonoBehaviour:
     projectileSpeed: 18
     hitboxOffset: {x: 0.9, y: 0.35}
     hitboxSize: {x: 1.3, y: 0.7}
+    inputCommand: 
+    description: 
   specialUp:
     animIndex: 42
     attackName: SpecialU
@@ -417,6 +449,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 1.7}
     hitboxSize: {x: 0.9, y: 1.3}
+    inputCommand: 
+    description: 
   specialDown:
     animIndex: 43
     attackName: SpecialD
@@ -440,6 +474,8 @@ MonoBehaviour:
     projectileSpeed: 8
     hitboxOffset: {x: 0.6, y: 0.8}
     hitboxSize: {x: 1, y: 0.8}
+    inputCommand: 
+    description: 
   grab:
     animIndex: 60
     attackName: Grab
@@ -463,6 +499,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwForward:
     animIndex: 50
     attackName: ThrowF
@@ -486,6 +524,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwBack:
     animIndex: 51
     attackName: ThrowB
@@ -509,6 +549,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwUp:
     animIndex: 52
     attackName: ThrowU
@@ -532,6 +574,8 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
   throwDown:
     animIndex: 53
     attackName: ThrowD
@@ -555,3 +599,5 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 

@@ -1,0 +1,7 @@
+# SuperSmashLike — 源码编码统一规则
+# 作用：VS 打开/保存 .cs 一律 UTF-8，防止中文系统把无 BOM 文件当 GBK 处理
+root = true
+
+[*.cs]
+charset = utf-8
+insert_final_newline = true
