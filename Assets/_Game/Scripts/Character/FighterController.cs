@@ -921,12 +921,12 @@ namespace SuperSmashLike.Core
                 comboStep = 0;
                 animator.SetInteger("ComboStep", 0);
                 inputBuffer.Clear();
-
-                // 3. 攻击数据切换为必杀数据（替换当前攻击）
-                attackData = data;
-                foreach (var hb in GetComponentsInChildren<Hitbox>(true))
-                    hb.attackData = attackData;
             }
+
+            // 3. 攻击数据切换为必杀数据（替换当前攻击）取消路径和直发路径都要执行
+            attackData = data;
+            foreach (var hb in GetComponentsInChildren<Hitbox>(true))
+                hb.attackData = attackData;
 
             // ===== 分支 1：SU 位移闪现（无投射物） =====
             if (data == fighterData.specialUp)
@@ -936,9 +936,6 @@ namespace SuperSmashLike.Core
                 return;
             }
 
-            isAttacking = true;
-            hitboxActivatedThisAttack = false;
-
             // ===== 分支 2：投射物型（SN 火球 / SF 气波 / SD 石头） =====
             if (data.projectilePrefab == null)
             {
@@ -946,6 +943,10 @@ namespace SuperSmashLike.Core
                     SmashDebug.Log(DebugChannel.Combat, $"特殊攻击 {data.attackName} 缺 projectilePrefab");
                 return;
             }
+            
+            //先校验资源再占用攻击态，避免 return 后占用着攻击态却没兜底计时
+            isAttacking = true;
+            hitboxActivatedThisAttack = false;
 
             // 出生点：偏移 x 按朝向翻转；只有石头用远近分档
             float reach = (data == fighterData.specialDown && held) ? farSpecialRange : 1f;
@@ -967,6 +968,8 @@ namespace SuperSmashLike.Core
         // 【做什么】上B：起始闪光 → 垂直瞬移 → 终点闪光，全程短暂无敌
         private void DoSpecialUp(AttackData data)
         {
+            //SU 无判定框，但 FrameMeter / VisualRootMotion 仍读 attackData
+            attackData = data;
             isAttacking = true;
             hitboxActivatedThisAttack = false;
             specialUpUsed = true;
