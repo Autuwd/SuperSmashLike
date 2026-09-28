@@ -258,12 +258,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   attackData:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -273,8 +275,14 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
+    moveIcon: {fileID: 0}
   owner: {fileID: 0}
   showGizmos: 1
   activeColor: {r: 1, g: 0, b: 0, a: 1}
@@ -399,6 +407,7 @@ GameObject:
   - component: {fileID: 2503629124996281800}
   - component: {fileID: 4523789521531942654}
   - component: {fileID: 4834784801906068071}
+  - component: {fileID: 2222775914692705947}
   m_Layer: 0
   m_Name: Fighter_P2
   m_TagString: Untagged
@@ -479,17 +488,18 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 64
-  velocity: {x: 0, y: 0}
   remainingJumps: 0
   isJumping: 0
   jumpHeld: 0
   attackData:
+    animIndex: 0
     attackName: Attack
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
     knockbackBase: 30
     knockbackGrowth: 50
+    hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
     recoveryTime: 0.2
@@ -499,16 +509,58 @@ MonoBehaviour:
     canSpecialCancel: 0
     hitEffectPrefab: {fileID: 0}
     hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
+    moveIcon: {fileID: 0}
   isAttacking: 0
   attackTimer: 0
   attackFallbackTimer: 0
+  specialUpDistance: 12
+  farSpecialRange: 2.5
+  isCharging: 0
+  chargeTimer: 0
+  maxChargeTime: 0.8
+  chargeDamageMultiplier: 1.25
+  chargeKnockbackMultiplier: 1.15
+  chargeBaseData:
+    animIndex: 0
+    attackName: Attack
+    damage: 5
+    shieldDamage: 3
+    knockbackAngle: 45
+    knockbackBase: 30
+    knockbackGrowth: 50
+    hitstunOverride: -1
+    startupTime: 0.1
+    activeTime: 0.1
+    recoveryTime: 0.2
+    hitstopDuration: 0.05
+    cancelIntoAttacks: []
+    canJumpCancel: 0
+    canSpecialCancel: 0
+    hitEffectPrefab: {fileID: 0}
+    hitSound: {fileID: 0}
+    projectilePrefab: {fileID: 0}
+    projectileSpawnOffset: {x: 0, y: 0}
+    projectileSpeed: 12
+    hitboxOffset: {x: 0, y: 0}
+    hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
+    moveIcon: {fileID: 0}
   comboStep: 0
   comboWindowStart: 0.4
   comboWindowEnd: 0.85
+  specialCancelStart: 0.2
+  specialCancelEnd: 0.6
   knockbackVelocity: {x: 0, y: 0}
   isInKnockback: 0
+  hitReactKnockSpeedThreshold: 3
   gravityScale: 2.2
   fastFallMultiplier: 1.6
   jumpBufferTime: 0.1
@@ -516,9 +568,25 @@ MonoBehaviour:
   doubleTapWindow: 0.25
   currentShieldHP: 0
   isShielding: 0
+  shieldVisual: {fileID: 0}
+  parryWindowFrames: 10
+  parryStunDuration: 1.2
+  shieldBreakStunDuration: 3
+  techBounceSpeed: 6
+  techInvincibleTime: 0.5
+  grabBoxSize: {x: 0.78, y: 0.86}
+  grabBoxOffset: {x: 0.36, y: 0.9}
+  grabHoldDistance: 1
+  escapeMashThreshold: 8
   isInvincible: 0
   respawnTimer: 0
+  respawnLockTime: 1.6
   remainingStocks: 3
+  velocity: {x: 0, y: 0}
+  grabTarget: {fileID: 0}
+  grabber: {fileID: 0}
+  hitboxActivatedThisAttack: 0
+  heavyStunDuration: 1.1
 --- !u!114 &2503629124996281800
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -526,12 +594,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7541988065048707383}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f101230bae8b8547a90fdd1e01ac9dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   fighterController: {fileID: 0}
+  longPressThreshold: 0.15
 --- !u!114 &4523789521531942654
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -597,6 +666,19 @@ CapsuleCollider2D:
   m_Offset: {x: 0, y: 0.9041922}
   m_Size: {x: 0.5, y: 1.8515706}
   m_Direction: 0
+--- !u!114 &2222775914692705947
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7541988065048707383}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 670f98cfd31bfe649afe6556491bacba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  decisionInterval: 0.2
 --- !u!1 &7878195383905611534
 GameObject:
   m_ObjectHideFlags: 0
