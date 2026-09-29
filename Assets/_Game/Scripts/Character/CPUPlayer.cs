@@ -93,10 +93,13 @@ namespace SuperSmashLike.Core
         [SerializeField] private float decisionInterval = 0.2f;     // 决策频率：每 0.2 秒决策一次（5Hz）
         [SerializeField] private float attackRange = 1.6f;          //攻击判定水平距离
         [SerializeField] private float attackHysteresis = 0.2f;     //滞回系数：0.2 = 在 attackRange 上下各留 20% 死区
-        [SerializeField] private float verticalRange = 1.6f;        // 攻击带垂直容差（【第 5 步】可在 Inspector 校准）
         [SerializeField] private float attackCooldown = 0.3f;       //出招后间隙。AI 打完要停一下
         [SerializeField] private float highDamageThreshold = 80f;   //自身伤害超过此值就脱离战斗
         [SerializeField] private float safeDistance = 6f;           // 舒适距离
+        
+        [Header("攻击带垂直范围（实测校准：对手相对我的高度）")]
+        [SerializeField] private float verticalRangeAbove = 1.46f;   // 对手在我上方多少仍能打中（实测）
+        [SerializeField] private float verticalRangeBelow = 0.96f;   // 对手在我下方多少仍能打中（实测）
         #endregion
 
         #region 2. 运行时状态
@@ -109,6 +112,7 @@ namespace SuperSmashLike.Core
         private float strikeStartTime;      // 本次出招的起始时刻
         private float strikeReadyTime;      // 下次可出招的最早时刻
         private bool inBand;                // 本 tick 的攻击带判定结果
+        private bool pendingShieldOff;      // 盾意图收，但被硬直吞了，等能收时补
 
         #endregion
 
@@ -133,6 +137,8 @@ namespace SuperSmashLike.Core
                 decisionTimer = 0f;
                 return;
             }
+
+            TryFlushShieldOff();  //每Tick都试一次，防止硬直吞盾牌导致连盾
 
             decisionTimer -= Time.deltaTime;
             if (decisionTimer > 0f) return;
@@ -183,16 +189,6 @@ namespace SuperSmashLike.Core
             Debug.LogWarning($"[CPUPlayer] {msg}");
         }
 
-        // 战斗门禁：与 InputManager.cs 的 playable 判定保持一致
-        private bool CanDecide()
-        {
-            if(GameManager.Instance == null) return false;
-            if (GameManager.Instance.CurrentGameState != GameState.Battle) return false;
-            if(MatchManager.Instance == null || !MatchManager.Instance.IsMatchActive) return false;
-            if(me == null || foe == null) return false;
-            return !me.IsRespawnLocked;
-        }
-
         // 执行一次决策
         private void Tick()
         {
@@ -219,7 +215,7 @@ namespace SuperSmashLike.Core
             inBand = InAttackBand(p);      // 【重点】一 tick 唯一调用点
 
             // P1 安全：对手正在出招且我在攻击带内 → 举盾
-            if (p.OpponentAttacking && inBand) { Enter(CPUState.Guard); return; }
+            if (p.OpponentAttacking && inBand && CanStartGuard()) { Enter(CPUState.Guard); return; }
 
             // P2 机会：对手硬直（我的窗口）且在攻击带内 → 出手
             if (!p.OpponentInStun && inBand && CanStartStrike()) { Enter(CPUState.Strike); return; }
@@ -304,7 +300,8 @@ namespace SuperSmashLike.Core
         //   → 表现为一顿一顿的抽搐。
         private bool InAttackBand(Perception p)
         {
-            if (Mathf.Abs(p.HeightDifference) > verticalRange) return false;
+            float vRange = p.HeightDifference > 0f ? verticalRangeAbove : verticalRangeBelow;
+            if (Mathf.Abs(p.HeightDifference) > vRange) return false;
 
             if (closingIn)
             {
@@ -351,15 +348,29 @@ namespace SuperSmashLike.Core
             // 【重点】出招写在【进入钩子】，绝不写进 TickStrike。
             //   决策 5Hz vs jab1 总时长 ~0.4s → 放进 TickStrike 会每 0.2s 重出一次。
             if (state == CPUState.Strike) BeginStrike();
-            if (state == CPUState.Guard) me.SetShielding(true);
+            if (state == CPUState.Guard)
+            {
+                me.SetShielding(true);
+                pendingShieldOff = false;
+            }
 
             if (SmashDebug.IsOn(DebugChannel.State))
                 SmashDebug.Log(DebugChannel.State, $"CPU 决策 → {state}");
         }
 
-        private void Exit(CPUState state) 
+        private void Exit(CPUState state)
         {
-            if (state == CPUState.Guard) me.SetShielding(false);
+            if (state != CPUState.Guard) return;
+            pendingShieldOff = true;      // 先记意图
+            TryFlushShieldOff();          // 试一次
+        }
+
+        private void TryFlushShieldOff()
+        {
+            if (!pendingShieldOff) return;
+            me.SetShielding(false);
+            if (me.isShielding) return;   // 还是 true → 硬直吞了，保持意图下轮再试
+            pendingShieldOff = false;      // 成功，清意图
         }
 
         // 【D1 选招表】只给 jab1，够验证"能打"。
@@ -390,6 +401,28 @@ namespace SuperSmashLike.Core
             if (Time.time < strikeReadyTime) return false;
             if (!me.StateMachine.CanAct()) return false;
             if (me.isInKnockback) return false;
+            return true;
+        }
+
+        // 战斗门禁：与 InputManager.cs 的 playable 判定保持一致
+        private bool CanDecide()
+        {
+            if (GameManager.Instance == null) return false;
+            if (GameManager.Instance.CurrentGameState != GameState.Battle) return false;
+            if (MatchManager.Instance == null || !MatchManager.Instance.IsMatchActive) return false;
+            if (me == null || foe == null) return false;
+            return !me.IsRespawnLocked;
+        }
+
+        // 举盾预检：与 FighterController.SetShielding 的守卫名单一一对齐
+        private bool CanStartGuard()
+        {
+            if (me == null) return false;
+            FighterState s = me.StateMachine.CurrentState;
+            if (s == FighterState.Knockback || s == FighterState.Dead || s == FighterState.Stun
+                || s == FighterState.ShieldStun || s == FighterState.Grab || s == FighterState.Grabbed)
+                return false;
+
             return true;
         }
 
