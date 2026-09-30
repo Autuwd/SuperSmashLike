@@ -460,7 +460,7 @@ Rigidbody2D:
     m_Bits: 0
   m_Interpolate: 0
   m_SleepingMode: 1
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
   m_Constraints: 4
 --- !u!114 &8330866816068433096
 MonoBehaviour:
@@ -574,6 +574,14 @@ MonoBehaviour:
   shieldBreakStunDuration: 3
   techBounceSpeed: 6
   techInvincibleTime: 0.5
+  throwKnockbackScale: 0.35
+  throwClearDist: 0.75
+  throwSlamLift: 0.6
+  throwLaunchRise: 0.35
+  throwSlamHitstun: 0.7
+  groundSlamBounceSpeed: 12
+  throwSlamDownSpeed: 14
+  slamBounceArmDelay: 0.08
   grabBoxSize: {x: 0.78, y: 0.86}
   grabBoxOffset: {x: 0.36, y: 0.9}
   grabHoldDistance: 1
@@ -678,7 +686,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 670f98cfd31bfe649afe6556491bacba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  decisionInterval: 0.2
+  difficulty: 2
+  attackRange: 1.6
+  attackHysteresis: 0.2
+  highDamageThreshold: 80
+  safeDistance: 6
+  attackEnabled: 1
+  aiFrozen: 0
+  verticalRangeAbove: 1.46
+  verticalRangeBelow: 0.96
 --- !u!1 &7878195383905611534
 GameObject:
   m_ObjectHideFlags: 0

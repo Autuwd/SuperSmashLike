@@ -183,6 +183,9 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
+    moveIcon: {fileID: 0}
   owner: {fileID: 0}
   showGizmos: 1
   activeColor: {r: 1, g: 0, b: 0, a: 1}
@@ -471,7 +474,7 @@ Rigidbody2D:
     m_Bits: 0
   m_Interpolate: 0
   m_SleepingMode: 1
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
   m_Constraints: 4
 --- !u!114 &8330866816068433096
 MonoBehaviour:
@@ -525,6 +528,9 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
+    moveIcon: {fileID: 0}
   isAttacking: 0
   attackTimer: 0
   attackFallbackTimer: 0
@@ -558,6 +564,9 @@ MonoBehaviour:
     projectileSpeed: 12
     hitboxOffset: {x: 0, y: 0}
     hitboxSize: {x: 0, y: 0}
+    inputCommand: 
+    description: 
+    moveIcon: {fileID: 0}
   comboStep: 0
   comboWindowStart: 0.4
   comboWindowEnd: 0.85
@@ -579,7 +588,16 @@ MonoBehaviour:
   shieldBreakStunDuration: 3
   techBounceSpeed: 6
   techInvincibleTime: 0.5
-  grabRange: 1.2
+  throwKnockbackScale: 0.35
+  throwClearDist: 0.75
+  throwSlamLift: 0.6
+  throwLaunchRise: 0.35
+  throwSlamHitstun: 0.7
+  groundSlamBounceSpeed: 12
+  throwSlamDownSpeed: 14
+  slamBounceArmDelay: 0.08
+  grabBoxSize: {x: 1.8, y: 1.2}
+  grabBoxOffset: {x: 0.9, y: 0.6}
   grabHoldDistance: 1
   escapeMashThreshold: 8
   isInvincible: 0

@@ -1,5 +1,6 @@
-using UnityEngine;
 using SuperSmashLike.Managers;
+using UnityEngine;
+using UnityEngine.Profiling;
 
 // ============================================================
 // CPUPlayer — CPU 决策层（M3 · D1 骨架）
@@ -48,6 +49,17 @@ namespace SuperSmashLike.Core
         Hop,        // 跳跃/空中调整——起跳、空中后撤
     }
 
+    // AI 难度档位（D2-①）
+    // 【注意】显式给值 0/1/2/3，不靠声明顺序 —— 以后往中间插档位，
+    //   不会让 Inspector 里已选好的难度静默变成另一档。
+    public enum Difficulty 
+    { 
+        Easy = 0, 
+        Normal = 1, 
+        Hard = 2, 
+        Expert = 3 
+    }
+
     // 一个决策周期内的只读感知快照
     // 【重点】刻意【不持有】对手引用：只存"我观察到的事实"。
     //   这样决策代码在物理上就没法去改对手的任何字段（防作弊 + 防耦合）。
@@ -79,24 +91,44 @@ namespace SuperSmashLike.Core
         }
     }
 
+    [System.Serializable]
+    public struct AIProfile
+    {
+        [Tooltip("反应延迟：决策间隔秒数，越大越迟钝")]
+        public float decisionInterval;
+        [Tooltip("出招后间隙秒数，越小越激进")]
+        public float attackCooldown;
+        [Tooltip("攻击欲望 0~1：进带后不一定要出手")]
+        [Range(0f, 1f)] public float strikeChance;
+        [Tooltip("防御倾向 0~1：对手出招时不一定举盾")]
+        [Range(0f, 1f)] public float guardChance;
+        [Tooltip("闪避概率 0~1")]
+        [Range(0f, 1f)] public float evadeChance;
+    }
+
     [RequireComponent(typeof(FighterController))]
     public class CPUPlayer : MonoBehaviour
     {
         #region 1. 可调参数（Inspector）
 
-        
-        // 【重点】两个都不要改：
-        //   ① 别改成每帧决策 —— AI 退化成"输入脚本"，玩家一眼看出机械感；
-        //   ② 别改用 unscaledTime —— Hitstop 会设 Time.timeScale = 0
-        //      （Hitbox.cs:137），用 unscaledTime 会让 AI 在顿帧期间继续决策，
-        //      表现为"顿帧时 AI 还在动"，像穿模出手。
-        [SerializeField] private float decisionInterval = 0.2f;     // 决策频率：每 0.2 秒决策一次（5Hz）
-        [SerializeField] private float attackRange = 1.6f;          //攻击判定水平距离
+
+        // 【重点】决策间隔 / 出招间隙的唯一真源 = AIProfile（见下方 profile 属性）。
+        //   不要再留独立的 decisionInterval / attackCooldown —— 两份真源会静默打架：
+        //   改 Inspector 那个不生效、或改 profile 那个被覆盖，而两边"看起来"都像生效了。
+        //   默认 Hard 档 = 0.2s / 0.3s，与删掉的那两个默认值完全一致 → 行为零变化。
+        [SerializeField] private Difficulty difficulty = Difficulty.Hard;
+        [SerializeField] private float attackRange = 1.6f;          // 攻击判定水平距离
         [SerializeField] private float attackHysteresis = 0.2f;     //滞回系数：0.2 = 在 attackRange 上下各留 20% 死区
-        [SerializeField] private float attackCooldown = 0.3f;       //出招后间隙。AI 打完要停一下
         [SerializeField] private float highDamageThreshold = 80f;   //自身伤害超过此值就脱离战斗
         [SerializeField] private float safeDistance = 6f;           // 舒适距离
-        
+
+        [Header("调试开关")]
+        [Tooltip("是否允许 CPU 主动交战（进攻+防御）。关掉后 AI 只接近/撤离，不出招不出盾，方便测试人类一侧（投掷/受击/KO）")]
+        [SerializeField] private bool attackEnabled = true;
+
+        [Tooltip("完全冻结 CPU：不做任何决策、不写 MoveInput。测试人类一侧时最干净")]
+        [SerializeField] private bool aiFrozen = false;
+
         [Header("攻击带垂直范围（实测校准：对手相对我的高度）")]
         [SerializeField] private float verticalRangeAbove = 1.46f;   // 对手在我上方多少仍能打中（实测）
         [SerializeField] private float verticalRangeBelow = 0.96f;   // 对手在我下方多少仍能打中（实测）
@@ -113,6 +145,16 @@ namespace SuperSmashLike.Core
         private float strikeReadyTime;      // 下次可出招的最早时刻
         private bool inBand;                // 本 tick 的攻击带判定结果
         private bool pendingShieldOff;      // 盾意图收，但被硬直吞了，等能收时补
+        private AIProfile profile => Profiles[(int)difficulty];
+
+        // 四档预设（D2-① 的全部内容）
+        private static readonly AIProfile[] Profiles =
+        {
+            new AIProfile { decisionInterval = 0.50f, attackCooldown = 0.80f, strikeChance = 0.35f, guardChance = 0.15f, evadeChance = 0.05f }, // 简单
+            new AIProfile { decisionInterval = 0.32f, attackCooldown = 0.50f, strikeChance = 0.60f, guardChance = 0.35f, evadeChance = 0.15f }, // 普通
+            new AIProfile { decisionInterval = 0.20f, attackCooldown = 0.30f, strikeChance = 0.80f, guardChance = 0.60f, evadeChance = 0.30f }, // 困难
+            new AIProfile { decisionInterval = 0.12f, attackCooldown = 0.18f, strikeChance = 0.95f, guardChance = 0.80f, evadeChance = 0.50f }, // 专家
+        };
 
         #endregion
 
@@ -130,6 +172,18 @@ namespace SuperSmashLike.Core
         {
             ResolveFoe();
 
+            // 【调试】完全冻结：连决策都不跑。
+            //   必须显式清 MoveInput —— 冻结前若停在 Approach，MoveInput 里还留着方向，
+            //   人为"停住决策"但角色照走（决策 5Hz / 物理 60Hz，不写 ≠ 停下）。
+            if (aiFrozen)
+            {
+                // 冻结前正在举盾就先收盾，否则它会一直举着盾挡住你的抓取测试
+                if (current == CPUState.Guard) { Exit(CPUState.Guard); Enter(CPUState.Idle); }
+                TryFlushShieldOff();
+                me.MoveInput = Vector2.zero;
+                return;
+            }
+
             // 【重点】门禁必须照抄 InputManager 的双条件，再加 respawnLock。
             //   少了它，Title / Result 阶段会给已被 Reset 的角色写 MoveInput。
             if (!CanDecide())
@@ -142,7 +196,7 @@ namespace SuperSmashLike.Core
 
             decisionTimer -= Time.deltaTime;
             if (decisionTimer > 0f) return;
-            decisionTimer = decisionInterval;
+            decisionTimer = profile.decisionInterval;
 
             Tick();
         }
@@ -209,25 +263,48 @@ namespace SuperSmashLike.Core
         //   的双向依赖 —— 改一个状态要同时改另一个，越改越乱。
         private void Decide(Perception p)
         {
-            // P0 自己被硬直 → 什么都做不了，站桩
-            if (p.SelfStunned) { Enter(CPUState.Idle); return; }
+            // 【重点】出招进行中 → 决策机冻结，让 Act 走 TickStrike 把出招生命周期走完。
+            //   不加这条：P4 的冷却判断会在下一个 tick 把 Strike 踢成 Idle，
+            //   TickStrike 永远是死代码，出招节奏退化成固定 0.5s 节拍器。
+            if (current == CPUState.Strike)
+            {
+                AttackData atk = me.fighterData != null ? me.fighterData.jab1 : null;
+                if (atk != null && Time.time - strikeStartTime < atk.TotalDuration)
+                { return; }
+            }
 
-            inBand = InAttackBand(p);      // 【重点】一 tick 唯一调用点
+            if (p.SelfStunned) 
+            { 
+                Enter(CPUState.Idle); 
+                return; 
+            }
 
-            // P1 安全：对手正在出招且我在攻击带内 → 举盾
-            if (p.OpponentAttacking && inBand && CanStartGuard()) { Enter(CPUState.Guard); return; }
+            inBand = InAttackBand(p);
 
-            // P2 机会：对手硬直（我的窗口）且在攻击带内 → 出手
-            if (!p.OpponentInStun && inBand && CanStartStrike()) { Enter(CPUState.Strike); return; }
-
-            // P3 策略性回避：自身高伤害且离得还不够远 → 拉开
-            if (p.SelfDamagePercent >= highDamageThreshold && p.Distance < safeDistance)
-            { Enter(CPUState.Retreat); return; }
-
-            // P4 默认 → 接近
-            if (Time.time < strikeReadyTime) { Enter(CPUState.Idle); return; }
+            if (attackEnabled && p.OpponentAttacking && inBand && CanStartGuard() && Rand01() < profile.guardChance) 
+            { 
+                Enter(CPUState.Guard); 
+                return; 
+            }
+            if (attackEnabled && !p.OpponentInStun && inBand && CanStartStrike() && Rand01() < profile.strikeChance) 
+            { 
+                Enter(CPUState.Strike); 
+                return; 
+            }
+            if (p.SelfDamagePercent >= highDamageThreshold && p.Distance < safeDistance) 
+            { 
+                Enter(CPUState.Retreat); 
+                return; 
+            }
+            if (Time.time < strikeReadyTime) 
+            { 
+                Enter(CPUState.Idle); 
+                return; 
+            }
             Enter(CPUState.Approach);
         }
+
+        private float Rand01() => UnityEngine.Random.value;
 
         // 执行：纯动作，零判断
         private void Act(Perception p)
@@ -241,7 +318,9 @@ namespace SuperSmashLike.Core
                 case CPUState.Approach:
                     // 【注意】进带了却在冷却中 → 原地等。
                     //   不判断的话会直接撞进对手怀里（方向永远是"靠近"）。
-                    if (inBand && !CanStartStrike()) { Stop(); break; }
+                    // 【调试】attackEnabled=false 时同样要原地停：否则 AI 会一路挤到你身上，
+                    //   body-block 掉你的走位 —— 它不出招了，但挡着你，比出招还碍事。
+                    if (inBand && (!attackEnabled || !CanStartStrike())) { Stop(); break; }
                     me.MoveInput = new Vector2(p.Direction, 0f);
                     break;
 
@@ -274,9 +353,10 @@ namespace SuperSmashLike.Core
 
             //   SelfStunned 只表示"被别人打"，必须排除【自己出招】【自己举盾】
             //   漏了 Attack → AI 在自己挥拳时认为被硬直 → 决策表第一条就把状态打断
-            bool selfStunned = !me.StateMachine.CanAct()
-                && me.StateMachine.CurrentState != FighterState.Shield
-                && me.StateMachine.CurrentState != FighterState.Attack;
+            bool selfStunned = me.isInKnockback || me.IsRespawnLocked
+                || (!me.StateMachine.CanAct()
+                    && me.StateMachine.CurrentState != FighterState.Shield
+                    && me.StateMachine.CurrentState != FighterState.Attack);
 
             // 【重点】IsInAir() 包含 Knockback，不能用来判"能否行动"
             FighterState fs = foe.StateMachine.CurrentState;
@@ -381,7 +461,7 @@ namespace SuperSmashLike.Core
         {
             AttackData atk = me.fighterData.jab1;
             strikeStartTime = Time.time;
-            strikeReadyTime = Time.time + atk.TotalDuration + attackCooldown;
+            strikeReadyTime = Time.time + atk.TotalDuration + profile.attackCooldown;
             me.TryAttack(atk);
 
             if (SmashDebug.IsOn(DebugChannel.Combat))
@@ -436,7 +516,7 @@ namespace SuperSmashLike.Core
 
             // 【重点】回 Approach 而不是回 Idle：
             //   Approach 会重跑 InAttackBand —— 滞回的【出带】分支在这里第一次被走到。
-            //   上一步 TickStrike 是空的，AI 进得去出不来，滞回只能验一半。
+            //   （招式进行中由上一行提前 return 处理，此时不写任何输入）
             Enter(CPUState.Approach);
         }
 

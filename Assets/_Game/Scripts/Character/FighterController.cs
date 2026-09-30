@@ -53,6 +53,8 @@ namespace SuperSmashLike.Core
         public Transform groundCheck;            // 脚底检测点（空子物体）
         public float groundCheckRadius = 0.2f;   // 检测半径
         public LayerMask groundLayer;            // 哪些层算"地面"
+        private const int GroundLayerIndex = 6;   // Ground 层索引（Inspector 里 Ground=6）
+        private static readonly int GroundMaskAll = (1 << 6) | (1 << 0);   // Ground + Default（踩对手也算地面）
 
         [Header("Jump")]
         public int remainingJumps;   // 剩余跳跃次数（大乱斗通常可跳 2 次）
@@ -97,6 +99,10 @@ namespace SuperSmashLike.Core
 
         [Header("Feel")]
         public float gravityScale = 2.2f;         // 角色专属重力倍率（默认×1=标准重力）
+        private float _probeTimer;
+        private float _fallDiagTimer;
+        private int _fallStuckFrames;
+        private int _lastDiagState = -1;
         public float fastFallMultiplier = 1.6f;   // 快速下落速度倍率
         public float jumpBufferTime = 0.1f;       // 跳跃缓冲时间（秒）
         public float coyoteTime = 0.1f;           // 土狼时间（秒）：离地后仍可起跳的宽限
@@ -115,6 +121,31 @@ namespace SuperSmashLike.Core
         [Header("Tech")]
         public float techBounceSpeed = 6f;    // 受身成功小反弹速度
         public float techInvincibleTime = 0.5f;  // 受身无敌时长（秒）
+
+        [Header("投掷调参")]
+        [Tooltip("投掷击飞缩放。投掷是高伤害 / 低击飞的交换：伤害给足，但不该把人打飞 —— 否则一次投掷等于一次击飞。1=退回与攻击同值")]
+        public float throwKnockbackScale = 0.35f;
+
+        [Tooltip("前后投/上投的脱离距离（把对手挪出身体范围）")]
+        public float throwClearDist = 0.75f;
+
+        [Tooltip("下投的挑起高度。必须先把人挑离地面，砸才有过程可看")]
+        public float throwSlamLift = 0.6f;
+
+        [Tooltip("左右投的向上分量。0=退回纯水平推人。0.8≈38° 上斜（水平分量仅 78%）；0.35≈19°（水平分量 94%），侧投走得更平更远")]
+        public float throwLaunchRise = 0.35f;
+
+        [Tooltip("下投专用硬直，保证挑起→砸下→反弹三段演完")]
+        public float throwSlamHitstun = 0.7f;
+
+        [Tooltip("下投砸地后的反弹速度")]
+        public float groundSlamBounceSpeed = 12f;
+
+        [Tooltip("下投下砸速度（独立算，不走 CalculateKnockbackVelocity）")]
+        public float throwSlamDownSpeed = 14f;
+
+        [Tooltip("击飞开始后多少秒内不触发反弹（见 FixedUpdate 里的说明）")]
+        public float slamBounceArmDelay = 0.08f;
 
         [Header("Grab")]
         public Vector2 grabBoxSize = new Vector2(1.8f, 1.2f);   // 尺寸：x=前伸长，y=高
@@ -152,6 +183,11 @@ namespace SuperSmashLike.Core
         public FighterController grabTarget;   // 我抓着谁（null = 没抓）
         public FighterController grabber;      // 谁抓着我（null = 没被抓）
 
+        private bool hasSlamBounced;             // 本次击飞是否已砸地反弹（防无限弹）
+        private float knockbackElapsedTime;      // 本次击飞已持续时间
+        private float knockbackStartupGrace;     // 击飞启动宽限期剩余时间（见 FixedUpdate 注释）
+        [SerializeField] private float knockbackStartupGraceSeconds = 0.12f;  // 击飞启动宽限期时长（秒）
+
         // 连段守卫：本次攻击的判定框是否已打开过（防连段提前取消吞掉判定）
         public bool hitboxActivatedThisAttack;
         public float heavyStunDuration = 1.1f;   // 重击硬直，对齐 Stun.anim
@@ -174,6 +210,8 @@ namespace SuperSmashLike.Core
         private float grabTimer;            // 抓取超时计时器（兜底，防异常断链）
         private bool grabWhiff;             // 本次 Grab 是抓空（没抓到人）
         private bool hasLeftGroundInKnockback;  // 击飞中是否离开过地面（受身窗口判据）
+        private bool slamBounceArmed;      // 下投砸地反弹是否已武装（防一次击飞多次弹）
+        private bool isSlamSlamming;        // 当前处于"下投砸下"阶段
         private int knockbackToken;             // 击飞令牌：连续被击飞时旧协程作废
         private bool stunTechable;              // 摔地硬直是否可被护盾提前起身
         private bool _isKilling;                // Kill 防重入
@@ -249,8 +287,52 @@ namespace SuperSmashLike.Core
             }
 
             // ===== 1. 地面检测与缓冲计时 =====
-            bool groundHit = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+            // 【为什么不能直接用 OverlapCircle】自己也在 Default 层，脚底圆必然命中自己的
+            //   collider 和 hurtbox → IsGrounded 恒为 true，空中判定全废。必须先排自己。
+            // 【为什么放宽到 Default】fighter 在 layer 0，而 groundLayer 只认 Ground(6)。
+            //   站到对手身上是 Smash 核心机制，旧写法会让角色踩着对手时永久卡 Fall。
+            // 【为什么要认 mainCollider】场景里 BlastZone / SpawnPoint 也在 Default 层，
+            //   只靠 isTrigger 过滤挡不住非触发器版本的白嫖，必须认准"角色主碰撞体"。
+            var groundHits = Physics2D.OverlapCircleAll(
+                groundCheck.position, groundCheckRadius, GroundMaskAll);
+            bool groundHit = false;
+            for (int i = 0; i < groundHits.Length; i++)
+            {
+                var col = groundHits[i];
+                if (col.isTrigger) continue;                       // hurtbox / 出生点
+                if (col.transform.IsChildOf(transform)) continue;   // 排除自己
+                if (col.gameObject.layer == GroundLayerIndex) { groundHit = true; break; }
+
+                var other = col.GetComponentInParent<FighterController>();
+                if (other != null && other != this && col == other.mainCollider)
+                { groundHit = true; break; }
+            }
             IsGrounded = groundHit && !isDroppingThrough;   // 落穿中强制非地面
+
+            DiagnoseFallState(groundHit);
+            ProbeUnderfoot();
+
+            // ===== 1.5 下投砸地反弹 =====
+            // 【为什么必须在 Update 而不是 FixedUpdate】：
+            //   FixedUpdate 读到的 IsGrounded 是 Update 上一帧算的值，而 rb.position
+            //   要到物理步执行完才同步 —— 落地那一帧两者不同步，条件可能永远不成立。
+            //   Update 里的 groundHit 是当帧 OverlapCircle 实测，能抓到"刚碰到地面"这一帧。
+            // 【为什么用独立字段而不是改 knockbackVelocity】：
+            //   knockbackVelocity 每帧被 *= 0.98 衰减，12f 起步一秒就剩 43%，
+            //   弹不起来。反弹是一次性脉冲，不该走这条衰减路径。
+            if (isSlamSlamming && slamBounceArmed && groundHit)
+            {
+                isSlamSlamming = false;
+                slamBounceArmed = false;
+                velocity = new Vector2(knockbackVelocity.x * 0.3f, groundSlamBounceSpeed);
+                knockbackVelocity = Vector2.zero;
+                isInKnockback = false;
+                hasLeftGroundInKnockback = true;   // 砸地也算离地 → 落地可受身
+                StateMachine.TransitionTo(FighterState.Fall);
+                if (SmashDebug.IsOn(DebugChannel.Combat))
+                    SmashDebug.Log(DebugChannel.Combat,
+                        $"{name} 砸地反弹 y={groundSlamBounceSpeed}");
+            }
 
             // ===== 2. 死亡：只关渲染和碰撞，不关 GameObject =====
             if (StateMachine.CurrentState == FighterState.Dead)
@@ -394,8 +476,14 @@ namespace SuperSmashLike.Core
 
             if (isInKnockback)
             {
+                knockbackElapsedTime += Time.fixedDeltaTime;
+                knockbackStartupGrace -= Time.fixedDeltaTime;
+
                 // 击飞中离开过地面 → 标记（否则落地受身永不触发）
-                if (!IsGrounded) hasLeftGroundInKnockback = true;
+                // 【注意】启动宽限期内绝不标记：投掷/受身瞬间，探测圆可能仍与对手 mainCollider 重叠，
+                // 此时 IsGrounded=true 的含义是"正踩在对手身上"而不是"击飞升空后落回地面"。
+                // 若在此误置 true，会被 UpdateGravity 的贴地取消分支当场击杀击飞。
+                if (knockbackStartupGrace <= 0f && !IsGrounded) hasLeftGroundInKnockback = true;
 
                 rb.velocity = knockbackVelocity;
                 // 水平/垂直衰减模拟空气阻力
@@ -577,7 +665,10 @@ namespace SuperSmashLike.Core
                     return;
                 }
 
-                if (hasLeftGroundInKnockback)
+                // 【注意】启动宽限期内不判定"贴地落地"：投掷瞬间受害者可能仍与投掷者碰撞体重叠，
+                // IsGrounded=true 来自"站在对手身上"而非"击飞后落回地面"。
+                // 若在此取消击飞，上投会退化成"只位移到对手头顶、不抛飞"（历史 bug 根因）。
+                if (hasLeftGroundInKnockback && knockbackStartupGrace <= 0f)
                 {
                     // 真击飞落回地面 → 进入可受身硬直
                     if (SmashDebug.IsOn(DebugChannel.Movement))
@@ -1173,6 +1264,17 @@ namespace SuperSmashLike.Core
                 return;              // 关键：盾防走完直接返回，不再掉血/击飞
             }
 
+            // ===== 累加伤害 =====
+            // 【重点】这一步曾【完全缺失】：方法头注释 :1146 写了"累加伤害"，
+            //   但代码从盾分支直接跳到计算击飞。后果是普通命中只出击退不掉血，
+            //   CurrentDamage 恒为 0 → CalculateKnockbackVelocity 拿到的 targetDamage
+            //   永远是 0 → 击退也永远不随伤害成长，整局表现得像伤害是 0。
+            //   投掷路径 PerformThrow:1286 是全工程唯一累加过的地方（所以只有投掷能打伤害）。
+            float finalDamage = DamageSystem.CalculateFinalDamage(
+                attack, GameManager.Instance.gameSettings.damageRatio);
+            CurrentDamage += finalDamage;
+            OnDamaged?.Invoke(finalDamage, attacker);
+
             // ===== 计算击飞 =====
             float knockSpeed = DamageSystem.CalculateKnockbackVelocity(
                 attack, CurrentDamage, fighterData.weight);
@@ -1207,6 +1309,9 @@ namespace SuperSmashLike.Core
             knockbackVelocity = direction.normalized * speed;
             isInKnockback = true;
             hasLeftGroundInKnockback = false;
+            hasSlamBounced = false;
+            knockbackElapsedTime = 0f;
+            knockbackStartupGrace = knockbackStartupGraceSeconds;
 
             float hitstunDuration = hitstunOverride >= 0f
                 ? hitstunOverride
@@ -1289,25 +1394,93 @@ namespace SuperSmashLike.Core
             // 后投先转身，让"投掷方向"与朝向一致
             if (dir == ThrowDir.Back) SetFacing(!isFacingRight);
 
-            Vector2 throwDir = dir switch
+            Vector2 clearDir = dir switch
             {
-                ThrowDir.Forward or ThrowDir.Back => isFacingRight ? Vector2.right : Vector2.left,
-                ThrowDir.Up   => Vector2.up,
-                ThrowDir.Down => Vector2.down,
-                _             => Vector2.zero,   // 兜底：防御性归零
+                // 【注意】下投也用【水平】朝向，不要用 Vector2.up。
+                //   clearOffset 会拼在投掷者位置后面（victim.rb.position = 投掷者 + clearOffset），
+                //   填 up 会把对手放到投掷者头顶。挑起只由 ApplySlamThrow 从【对手自己位置】做。
+                ThrowDir.Forward or ThrowDir.Back or ThrowDir.Down
+                                 => isFacingRight ? Vector2.right : Vector2.left,
+                ThrowDir.Up => Vector2.up,
+                _ => Vector2.zero,   // 兜底：防御性归零
             };
 
-            // 4) 瞬移受害人到投掷方向外侧（固定距离，不依赖碰撞体尺寸）
-            const float clearDist = 1.5f;   // 足够跨越角色半宽 + 安全间距
-            victim.rb.position = (Vector2)rb.position + throwDir * clearDist;
+            // 4) 把受害者挪出身体范围
+            //    【重点】位移方向 ≠ 击飞方向，两个用途要的物理效果不一样：
+            //      · 位移 = clearDir  → 只为脱离投掷者身体
+            //      · 击飞 = knockDir  → 只为把人打飞
+            //    下投的位移是【向上挑】：贴在地板上的人没有"向下砸"的余量，
+            //    不先挑离地面就只会原地弹，看不到砸的过程。
+            Vector2 clearOffset = clearDir * throwClearDist;
+            victim.rb.position = (Vector2)rb.position + clearOffset;
 
             // 5) 计算击飞并应用
+            //    【重点】投掷不吃攻击的击飞值，走独立缩放。
+            //      攻击追求"打飞"，投掷追求"高伤害但别飞太远"。
             float knockSpeed = DamageSystem.CalculateKnockbackVelocity(
-                data, victim.CurrentDamage, victim.fighterData.weight);
-            victim.ApplyKnockback(throwDir, knockSpeed);
+                data, victim.CurrentDamage, victim.fighterData.weight) * throwKnockbackScale;
+
+            Vector2 knockDir;
+            float hitstunOverride = -1f;
+            if (dir == ThrowDir.Down)
+            {
+                victim.ApplySlamThrow(
+                    clearDir, throwSlamDownSpeed, throwSlamLift, throwSlamHitstun);
+                StartCoroutine(RestoreCollisionAfterThrow(victim));
+                return;
+            }
+            else
+            {
+                // 【重点】左右投必须带【向上分量】。
+                //   纯水平推人 → 对手贴地滑行、全程不离地 → 观感是"被推了一下"，
+                //   不是"被投出去"。这就是"左右没有抛出效果"的根因。
+                //   throwLaunchRise 调到 0 可退回纯水平。
+                //
+                // 【补充 09-30】上投保持【纯垂直】Vector2.up，不加前向分量。
+                //   【为什么不要前向分量】试过 1.6（仰角 32°）—— 对手被抛到投掷者【前方】，
+                //   落地后可能落在投掷者身后，彻底脱离控制范围，与"上投"语义相反。
+                //   上投"飞得高不高"由 knockbackBase 决定，不由方向决定：
+                //     D2 缩放前 base=20 → 垂直速度 ≈ 21.6，能抛很高
+                //     D2 缩放后 base=5.6 → 垂直速度 ≈ 9.0，抛不起来（这才是真正的病根）
+                //   base 已修复回 20，所以纯垂直就能正常抛飞。
+                if (dir == ThrowDir.Up)
+                {
+                    knockDir = Vector2.up;
+                }
+                else
+                {
+                    knockDir = (clearDir + Vector2.up * throwLaunchRise).normalized;
+                }
+            }
+
+            victim.ApplyKnockback(knockDir, knockSpeed, hitstunOverride);
 
             // 6) 投掷后 0.6s 再恢复碰撞（等 victim 飞出身体范围）
             StartCoroutine(RestoreCollisionAfterThrow(victim));
+        }
+
+        // 【做什么】被下投砸地：下砸 → 触地反弹
+        // 【由谁调用】对方（投掷方）的 PerformThrow
+        // 【为什么单独开方法】下投的位移/速度/反弹三段逻辑与普通击飞完全不同，
+        //   塞进 ApplyKnockback 会让那套"方向+速度+成长率"的模型出现特例分支
+        public void ApplySlamThrow(Vector2 horizontalDir, float downSpeed, float liftHeight, float hitstun)
+        {
+            knockbackToken++;
+            CurrentKnockbackSpeed = downSpeed;
+
+            // 挑起：给"砸下"留出下落空间
+            rb.position += Vector2.up * liftHeight;
+
+            // 下砸
+            isSlamSlamming = true;
+            slamBounceArmed = true;
+            knockbackVelocity = new Vector2(horizontalDir.x * 2f, -downSpeed);
+            isInKnockback = true;
+            hasLeftGroundInKnockback = false;
+            knockbackStartupGrace = knockbackStartupGraceSeconds;   // 与 ApplyKnockback 一致：屏蔽启动瞬间的陈旧 IsGrounded
+
+            StateMachine.TransitionTo(FighterState.Knockback);
+            StartCoroutine(EndHitstunAfter(hitstun));
         }
 
         // 【做什么】进入眩晕（破盾 / 被盾反时调用）
@@ -1582,6 +1755,73 @@ namespace SuperSmashLike.Core
 
             // 3. 没推方向 → 默认前投（防御性兜底）
             return ThrowDir.Forward;
+        }
+
+        private void DiagnoseFallState(bool groundHit)
+        {
+            var st = StateMachine.CurrentState;
+
+            bool stateChanged = (int)st != _lastDiagState;
+            _lastDiagState = (int)st;
+
+            // 卡死判定：脚下有地面却仍处于 Fall
+            if (st == FighterState.Fall && groundHit) _fallStuckFrames++;
+            else _fallStuckFrames = 0;
+
+            // 节流：状态切换那一帧必打，之后每 0.25s 一条；卡死则每帧打
+            _fallDiagTimer -= Time.deltaTime;
+            bool shouldLog = stateChanged
+                          || (st == FighterState.Fall && _fallDiagTimer <= 0f)
+                          || _fallStuckFrames == 1;
+            if (!shouldLog) return;
+            _fallDiagTimer = 0.25f;
+
+            if (!SmashDebug.IsOn(DebugChannel.Movement)) return;
+
+            string flag = _fallStuckFrames > 30 ? "【卡死】"
+                        : _fallStuckFrames > 0 ? "(已落地未迁移)" : "";
+
+            SmashDebug.Log(DebugChannel.Movement,
+                $"[Fall诊断]{flag} {name} st={st} canAct={StateMachine.CanAct()} " +
+                $"groundHit={groundHit} grounded={IsGrounded} drop={isDroppingThrough}/{droppedPlatforms.Count} " +
+                $"vel=({velocity.x:F2},{velocity.y:F2}) kb=({knockbackVelocity.x:F1},{knockbackVelocity.y:F1}) " +
+                $"isKB={isInKnockback} leftGround={hasLeftGroundInKnockback} " +
+                $"gcY={groundCheck.position.y:F3} minY={mainCollider.bounds.min.y:F3} " +
+                $"stuck={_fallStuckFrames}");
+        }
+
+        // B2 决定性探针：只查"声称在空中且正在下落"这一 bug 条件，打印脚下真实有什么
+        private void ProbeUnderfoot()
+        {
+            if (StateMachine.CurrentState != FighterState.Fall) return;
+            if (IsGrounded) return;
+            if (velocity.y > -0.1f) return;
+
+            _probeTimer -= Time.deltaTime;
+            if (_probeTimer > 0f) return;
+            _probeTimer = 1f;
+
+            var all = Physics2D.OverlapCircleAll(
+                groundCheck.position, groundCheckRadius, Physics2D.AllLayers);
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"[探针] {name} gcPos={groundCheck.position} r={groundCheckRadius} ");
+            sb.Append($"colMin={mainCollider.bounds.min} colMax={mainCollider.bounds.max} | ");
+            sb.Append($"全层命中 {all.Length} 个: ");
+            for (int i = 0; i < all.Length; i++)
+            {
+                var c = all[i];
+                sb.Append($"<{c.name} layer={c.gameObject.layer}" +
+                          $"({LayerMask.LayerToName(c.gameObject.layer)})" +
+                          $" trig={c.isTrigger} min={c.bounds.min} max={c.bounds.max}> ");
+            }
+
+            var masked = Physics2D.OverlapCircle(
+                groundCheck.position, groundCheckRadius, groundLayer);
+            sb.Append($"|| groundLayer.value={groundLayer.value}(0x{groundLayer.value:X}) " +
+                      $"带掩码命中={(masked == null ? "null" : masked.name)}");
+
+            SmashDebug.Log(DebugChannel.Movement, sb.ToString());
         }
 
         // 【做什么】深拷贝一份 AttackData

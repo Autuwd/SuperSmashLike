@@ -9781,7 +9781,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 18
-  lifeTime: 0.4
+  lifeTime: 0.3
   launchAngle: 0
   gravity: 0
   spinSpeed: 0

@@ -119,20 +119,23 @@ public class DemoSetupWizard : EditorWindow
         fd.jumpCount = jumpCount;
 
         // 填充所有攻击数据（使用默认值，用户可后续微调）
-        fd.jab1 = MakeAttack("Jab1", 3, 80, 10, 20, 0.05f, 0.05f, 0.1f);
-        fd.jab2 = MakeAttack("Jab2", 3, 80, 15, 25, 0.05f, 0.05f, 0.1f);
-        fd.jab3 = MakeAttack("Jab3", 5, 70, 30, 40, 0.08f, 0.05f, 0.15f);
-        fd.tiltSide = MakeAttack("SideTilt", 8, 40, 30, 50, 0.1f, 0.07f, 0.2f);
-        fd.tiltUp = MakeAttack("UpTilt", 7, 90, 35, 45, 0.1f, 0.08f, 0.2f);
-        fd.tiltDown = MakeAttack("DownTilt", 6, 0, 30, 40, 0.08f, 0.07f, 0.17f);
-        fd.smashSide = MakeAttack("SmashSide", 15, 45, 50, 80, 0.3f, 0.07f, 0.3f);
-        fd.smashUp = MakeAttack("SmashUp", 14, 90, 55, 75, 0.28f, 0.08f, 0.28f);
-        fd.smashDown = MakeAttack("SmashDown", 13, 0, 50, 70, 0.25f, 0.07f, 0.3f);
-        fd.aerialNeutral = MakeAttack("AirN", 8, 70, 35, 40, 0.08f, 0.15f, 0.15f);
-        fd.aerialForward = MakeAttack("AirF", 10, 50, 40, 55, 0.1f, 0.1f, 0.18f);
-        fd.aerialBack = MakeAttack("AirB", 10, 60, 40, 55, 0.1f, 0.1f, 0.18f);
-        fd.aerialUp = MakeAttack("AirU", 8, 90, 35, 45, 0.08f, 0.15f, 0.2f);
-        fd.aerialDown = MakeAttack("AirD", 9, 0, 40, 50, 0.1f, 0.15f, 0.12f);
+        // 【量级】baseKB / growth 已按 Smash 惯例缩放（旧版 30-55 / 45-80 会让 kbSpeed
+        //   达 100+，导致 DamageSystem.CalculateHitstun 的硬直映射全线封顶）。
+        //   改这两个数之前先看 CalculateHitstun 的 breakSpeed / maxSpeed。
+        fd.jab1 = MakeAttack("Jab1", 3, 80, 2.8f, 2f, 0.05f, 0.05f, 0.1f);
+        fd.jab2 = MakeAttack("Jab2", 3, 80, 4.2f, 2.5f, 0.05f, 0.05f, 0.1f);
+        fd.jab3 = MakeAttack("Jab3", 5, 70, 8.4f, 4f, 0.08f, 0.05f, 0.15f);
+        fd.tiltSide = MakeAttack("SideTilt", 8, 40, 8.4f, 5f, 0.1f, 0.07f, 0.2f);
+        fd.tiltUp = MakeAttack("UpTilt", 7, 90, 9.8f, 4.5f, 0.1f, 0.08f, 0.2f);
+        fd.tiltDown = MakeAttack("DownTilt", 6, 0, 8.4f, 4f, 0.08f, 0.07f, 0.17f);
+        fd.smashSide = MakeAttack("SmashSide", 15, 45, 14f, 8f, 0.3f, 0.07f, 0.3f);
+        fd.smashUp = MakeAttack("SmashUp", 14, 90, 15.4f, 7.5f, 0.28f, 0.08f, 0.28f);
+        fd.smashDown = MakeAttack("SmashDown", 13, 0, 14f, 7f, 0.25f, 0.07f, 0.3f);
+        fd.aerialNeutral = MakeAttack("AirN", 8, 70, 9.8f, 4f, 0.08f, 0.15f, 0.15f);
+        fd.aerialForward = MakeAttack("AirF", 10, 50, 11.2f, 5.5f, 0.1f, 0.1f, 0.18f);
+        fd.aerialBack = MakeAttack("AirB", 10, 60, 11.2f, 5.5f, 0.1f, 0.15f, 0.15f);
+        fd.aerialUp = MakeAttack("AirU", 8, 90, 9.8f, 4.5f, 0.08f, 0.15f, 0.2f);
+        fd.aerialDown = MakeAttack("AirD", 9, 0, 11.2f, 5f, 0.1f, 0.15f, 0.12f);
 
         AssetDatabase.CreateAsset(fd, $"Assets/_Game/ScriptableObjects/Characters/{assetName}.asset");
     }

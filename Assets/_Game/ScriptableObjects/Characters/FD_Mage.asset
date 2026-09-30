@@ -32,8 +32,8 @@ MonoBehaviour:
     damage: 3
     shieldDamage: 3
     knockbackAngle: 80
-    knockbackBase: 10
-    knockbackGrowth: 20
+    knockbackBase: 2.8
+    knockbackGrowth: 2
     hitstunOverride: -1
     startupTime: 0.05
     activeTime: 0.05
@@ -57,8 +57,8 @@ MonoBehaviour:
     damage: 3
     shieldDamage: 3
     knockbackAngle: 80
-    knockbackBase: 15
-    knockbackGrowth: 25
+    knockbackBase: 4.2
+    knockbackGrowth: 2.5
     hitstunOverride: -1
     startupTime: 0.05
     activeTime: 0.05
@@ -82,8 +82,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 70
-    knockbackBase: 30
-    knockbackGrowth: 40
+    knockbackBase: 8.4
+    knockbackGrowth: 4
     hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.05
@@ -107,8 +107,8 @@ MonoBehaviour:
     damage: 8
     shieldDamage: 3
     knockbackAngle: 40
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.07
@@ -132,8 +132,8 @@ MonoBehaviour:
     damage: 7
     shieldDamage: 3
     knockbackAngle: 90
-    knockbackBase: 35
-    knockbackGrowth: 45
+    knockbackBase: 9.8
+    knockbackGrowth: 4.5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.08
@@ -157,8 +157,8 @@ MonoBehaviour:
     damage: 6
     shieldDamage: 3
     knockbackAngle: 0
-    knockbackBase: 30
-    knockbackGrowth: 40
+    knockbackBase: 8.4
+    knockbackGrowth: 4
     hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.07
@@ -182,8 +182,8 @@ MonoBehaviour:
     damage: 15
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 50
-    knockbackGrowth: 80
+    knockbackBase: 14
+    knockbackGrowth: 8
     hitstunOverride: -1
     startupTime: 0.3
     activeTime: 0.07
@@ -207,8 +207,8 @@ MonoBehaviour:
     damage: 14
     shieldDamage: 3
     knockbackAngle: 90
-    knockbackBase: 55
-    knockbackGrowth: 75
+    knockbackBase: 15.4
+    knockbackGrowth: 7.5
     hitstunOverride: -1
     startupTime: 0.28
     activeTime: 0.08
@@ -232,8 +232,8 @@ MonoBehaviour:
     damage: 13
     shieldDamage: 3
     knockbackAngle: 0
-    knockbackBase: 50
-    knockbackGrowth: 70
+    knockbackBase: 14
+    knockbackGrowth: 7
     hitstunOverride: -1
     startupTime: 0.25
     activeTime: 0.07
@@ -257,8 +257,8 @@ MonoBehaviour:
     damage: 8
     shieldDamage: 3
     knockbackAngle: 70
-    knockbackBase: 35
-    knockbackGrowth: 40
+    knockbackBase: 9.8
+    knockbackGrowth: 4
     hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.15
@@ -282,8 +282,8 @@ MonoBehaviour:
     damage: 10
     shieldDamage: 3
     knockbackAngle: 50
-    knockbackBase: 40
-    knockbackGrowth: 55
+    knockbackBase: 11.2
+    knockbackGrowth: 5.5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -307,8 +307,8 @@ MonoBehaviour:
     damage: 10
     shieldDamage: 3
     knockbackAngle: 60
-    knockbackBase: 40
-    knockbackGrowth: 55
+    knockbackBase: 11.2
+    knockbackGrowth: 5.5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -332,8 +332,8 @@ MonoBehaviour:
     damage: 8
     shieldDamage: 3
     knockbackAngle: 90
-    knockbackBase: 35
-    knockbackGrowth: 45
+    knockbackBase: 9.8
+    knockbackGrowth: 4.5
     hitstunOverride: -1
     startupTime: 0.08
     activeTime: 0.15
@@ -357,8 +357,8 @@ MonoBehaviour:
     damage: 9
     shieldDamage: 3
     knockbackAngle: 0
-    knockbackBase: 40
-    knockbackGrowth: 50
+    knockbackBase: 11.2
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.15
@@ -382,8 +382,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -407,8 +407,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -432,8 +432,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -457,8 +457,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -482,8 +482,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -507,8 +507,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -532,8 +532,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -557,8 +557,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1
@@ -582,8 +582,8 @@ MonoBehaviour:
     damage: 5
     shieldDamage: 3
     knockbackAngle: 45
-    knockbackBase: 30
-    knockbackGrowth: 50
+    knockbackBase: 8.4
+    knockbackGrowth: 5
     hitstunOverride: -1
     startupTime: 0.1
     activeTime: 0.1

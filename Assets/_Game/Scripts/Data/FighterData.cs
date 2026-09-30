@@ -182,8 +182,11 @@ namespace SuperSmashLike.Core
 
         [Header("Knockback")]
         public float knockbackAngle = 45f;     // 击飞角度（0=水平, 90=垂直）
-        public float knockbackBase = 30f;      // 基础击飞值
-        public float knockbackGrowth = 50f;    // 击飞成长率（伤害越高影响越大）
+        // 【量级】这两个默认值已按 Smash 惯例缩放过（旧版 30/50 会让 kbSpeed 达 100+，
+        //   硬直映射全线封顶）。改默认值前先看 DamageSystem.CalculateHitstun 的
+        //   breakSpeed/maxSpeed，那两个常量是按当前量级标定的。
+        public float knockbackBase = 8.4f;     // 基础击飞值
+        public float knockbackGrowth = 5f;     // 击飞成长率（伤害越高影响越大）
         public float hitstunOverride = -1f;    // 手动指定硬直秒数（<0 = 按公式算）
 
         #endregion

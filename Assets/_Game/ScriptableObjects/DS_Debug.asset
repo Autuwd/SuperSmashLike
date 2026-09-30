@@ -14,13 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   master: 1
   onlyWarnings: 0
-  combat: 1
-  state: 1
-  input: 1
+  combat: 0
+  state: 0
+  input: 0
   grab: 0
   movement: 0
-  match: 0
-  ui: 0
+  match: 1
+  ui: 1
   camera: 0
   showOnScreenPanel: 0
   toggleKey: 282
