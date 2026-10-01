@@ -3566,8 +3566,12 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 2222775914692705947, guid: f34c3a88db72ff84a9bf90bb45345965, type: 3}
-      propertyPath: attackEnabled
+      propertyPath: difficulty
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2222775914692705947, guid: f34c3a88db72ff84a9bf90bb45345965, type: 3}
+      propertyPath: attackEnabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6592082993512997954, guid: f34c3a88db72ff84a9bf90bb45345965, type: 3}
       propertyPath: m_LocalPosition.x
