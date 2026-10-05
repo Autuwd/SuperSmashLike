@@ -9,11 +9,12 @@ namespace SuperSmashLike.UI
     public class MoveListUI : MonoBehaviour
     {
         [Header("UI")]
-        [SerializeField] private TextMeshProUGUI titleText;    // 角色名
-        [SerializeField] private Transform contentRoot;        // ScrollView → Content
-        [SerializeField] private GameObject itemPrefab;        // 条目模板
-        [SerializeField] private GameObject emptyHint;         // "暂无招式数据"提示
-        [SerializeField] private ScrollRect scrollRect;        // 切换 Tab 后滚动回顶（可选）
+        [SerializeField] private TextMeshProUGUI titleText;
+        [SerializeField] private TextMeshProUGUI playerText;
+        [SerializeField] private Transform contentRoot;
+        [SerializeField] private GameObject itemPrefab;
+        [SerializeField] private GameObject emptyHint;
+        [SerializeField] private ScrollRect scrollRect;
 
         [Header("Tabs")]
         [SerializeField] private Button tabJab;
@@ -23,30 +24,82 @@ namespace SuperSmashLike.UI
         [SerializeField] private Button tabSpecial;
         [SerializeField] private Button tabGrab;
 
-        private List<FighterData.MoveListEntry> _allEntries;   // Show 时缓存全量
-        private MoveCategory _currentTab;                      // 当前 Tab
+        private List<FighterData.MoveListEntry> _allEntries;
+        private MoveCategory _currentTab;
 
         private void Start()
         {
-            tabJab.onClick.AddListener(() => SwitchTab(MoveCategory.Jab));
-            tabTilt.onClick.AddListener(() => SwitchTab(MoveCategory.Tilt));
-            tabSmash.onClick.AddListener(() => SwitchTab(MoveCategory.Smash));
-            tabAerial.onClick.AddListener(() => SwitchTab(MoveCategory.Aerial));
-            tabSpecial.onClick.AddListener(() => SwitchTab(MoveCategory.Special));
-            tabGrab.onClick.AddListener(() => SwitchTab(MoveCategory.Grab));
-            SwitchTab(MoveCategory.Jab);      // 默认轻击
+            if (tabJab) tabJab.onClick.AddListener(() => SwitchTab(MoveCategory.Jab));
+            if (tabTilt) tabTilt.onClick.AddListener(() => SwitchTab(MoveCategory.Tilt));
+            if (tabSmash) tabSmash.onClick.AddListener(() => SwitchTab(MoveCategory.Smash));
+            if (tabAerial) tabAerial.onClick.AddListener(() => SwitchTab(MoveCategory.Aerial));
+            if (tabSpecial) tabSpecial.onClick.AddListener(() => SwitchTab(MoveCategory.Special));
+            if (tabGrab) tabGrab.onClick.AddListener(() => SwitchTab(MoveCategory.Grab));
+            SwitchTab(MoveCategory.Jab);
         }
 
         public void Show(FighterData data)
         {
             gameObject.SetActive(true);
-            if (data == null) { titleText.text = ""; ShowEmpty(); return; }
+            Populate(data, -1);
+        }
 
-            titleText.text = data.fighterName;
-            _allEntries = data.GetMoveEntries();
-            if (_allEntries.Count == 0) { ShowEmpty(); return; }
+        public void ShowFor(FighterData fd)
+        {
+            gameObject.SetActive(true);
+            Populate(fd, -1);
+        }
 
-            SwitchTab(_currentTab);           // 重开时恢复上次 Tab
+        public void ShowFor(FighterData fd, int playerId)
+        {
+            gameObject.SetActive(true);
+            Populate(fd, playerId);
+        }
+
+        public void ShowCurrent()
+        {
+            if (GameManager.Instance == null) return;
+            var gs = GameManager.Instance.gameSettings;
+            if (gs == null) return;
+
+            FighterData fd = gs.GetSelection(0);
+            if (fd == null && GameManager.Instance.ActivePlayers.Count > 0)
+                fd = GameManager.Instance.ActivePlayers[0].fighterData;
+
+            Show(fd);
+        }
+
+        public void Populate(FighterData fd)
+        {
+            Populate(fd, -1);
+        }
+
+        public void Populate(FighterData fd, int playerId)
+        {
+            if (fd == null)
+            {
+                if (titleText) titleText.text = "";
+                if (playerText) playerText.text = "";
+                ShowEmpty();
+                return;
+            }
+
+            if (titleText) titleText.text = fd.fighterName;
+            if (playerText != null)
+            {
+                if (playerId >= 0 && playerId <= 3)
+                    playerText.text = "玩家 " + (playerId + 1) + "（P" + (playerId + 1) + "）";
+                else
+                    playerText.text = "";
+            }
+
+            _allEntries = fd.GetMoveEntries();
+            if (_allEntries == null || _allEntries.Count == 0)
+            {
+                ShowEmpty();
+                return;
+            }
+            SwitchTab(_currentTab);
         }
 
         public void SwitchTab(MoveCategory cat)
@@ -54,30 +107,36 @@ namespace SuperSmashLike.UI
             _currentTab = cat;
             ClearContent();
 
-            // 只实例化当前分类的条目
+            if (_allEntries == null) return;
+
             foreach (var e in _allEntries)
             {
                 if (e.category != cat) continue;
+                if (itemPrefab == null || contentRoot == null) continue;
+
                 var go = Instantiate(itemPrefab, contentRoot);
-                go.GetComponent<MoveListItem>().Setup(e);
+                var item = go.GetComponent<MoveListItem>();
+                if (item != null) item.Setup(e);
             }
 
-            // 滚动回顶（scrollRect 可选项，没拖引用就跳过）
-            if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
+            if (scrollRect != null)
+                scrollRect.verticalNormalizedPosition = 1f;
         }
 
         public void Close() => gameObject.SetActive(false);
 
         private void ClearContent()
         {
-            foreach (Transform child in contentRoot) Destroy(child.gameObject);
-            emptyHint?.SetActive(false);
+            if (contentRoot == null) return;
+            foreach (Transform child in contentRoot)
+                Destroy(child.gameObject);
+            if (emptyHint) emptyHint.SetActive(false);
         }
 
         private void ShowEmpty()
         {
             ClearContent();
-            if (emptyHint != null) emptyHint.SetActive(true);
+            if (emptyHint) emptyHint.SetActive(true);
         }
     }
 }

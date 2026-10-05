@@ -20,6 +20,14 @@ namespace SuperSmashLike.Core
     [CreateAssetMenu(menuName = "SuperSmashLike/Game Settings", fileName = "GS_NewSettings")]
     public class GameSettings : ScriptableObject
     {
+        [System.Serializable]
+        public struct PlayerSelection
+        {
+            public bool hasSelected;  // 已确认
+            public bool isSelecting;  // 当前是否在选人（可选）
+            public FighterData fighterData;
+        }
+        
         #region 1. 比赛规则
 
         [Header("Match Rules")]
