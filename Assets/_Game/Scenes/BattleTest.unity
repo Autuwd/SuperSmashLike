@@ -1175,6 +1175,7 @@ RectTransform:
   - {fileID: 534729373}
   - {fileID: 436282562}
   - {fileID: 1292957884}
+  - {fileID: 828300002}
   m_Father: {fileID: 209148071}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1195,7 +1196,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   titleText: {fileID: 1829691589}
-  playerText: {fileID: 0}
+  playerText: {fileID: 30752793}
   contentRoot: {fileID: 1274022075}
   itemPrefab: {fileID: 297639342704691061, guid: 8ee64dd4e260c01428231d7e8e26fc0a, type: 3}
   emptyHint: {fileID: 534729372}
@@ -1206,6 +1207,17 @@ MonoBehaviour:
   tabAerial: {fileID: 1418829352}
   tabSpecial: {fileID: 1797021830}
   tabGrab: {fileID: 1475703236}
+  tabRepeatDelay: 0.18
+  activeTabColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  inactiveTabColor: {r: 1, g: 1, b: 1, a: 1}
+  playerTabBar: {fileID: 828300002}
+  playerHintColor: {r: 1, g: 1, b: 1, a: 1}
+  playerTabSize: {x: 110, y: 60}
+  playerHintSize: {x: 56, y: 60}
+  hintKeyPrev: Q
+  hintKeyNext: E
+  hintPadPrev: LB
+  hintPadNext: RB
 --- !u!114 &273419061
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4165,6 +4177,8 @@ MonoBehaviour:
   quitButton: {fileID: 729790325}
   moveListButton: {fileID: 1711725206}
   moveListUI: {fileID: 273419060}
+  navRepeatDelay: 0.18
+  selectionColor: {r: 1, g: 0.85, b: 0.2, a: 1}
 --- !u!1 &729790323
 GameObject:
   m_ObjectHideFlags: 0
@@ -4804,6 +4818,68 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &828300001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 828300002}
+  - component: {fileID: 828300003}
+  m_Layer: 5
+  m_Name: PlayerTabBar
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &828300002
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 828300001}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 273419059}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -8}
+  m_SizeDelta: {x: 760, y: 66}
+  m_Pivot: {x: 0.5, y: 1}
+--- !u!114 &828300003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 828300001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 30649d3a9faa99c48a7b1166b86bf2a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Padding:
+    m_Left: 0
+    m_Right: 0
+    m_Top: 0
+    m_Bottom: 0
+  m_ChildAlignment: 4
+  m_Spacing: 10
+  m_ChildForceExpandWidth: 0
+  m_ChildForceExpandHeight: 0
+  m_ChildControlWidth: 0
+  m_ChildControlHeight: 0
+  m_ChildScaleWidth: 0
+  m_ChildScaleHeight: 0
+  m_ReverseArrangement: 0
 --- !u!1 &831118630
 GameObject:
   m_ObjectHideFlags: 0
@@ -6701,6 +6777,7 @@ MonoBehaviour:
   featureP3: {fileID: 299167056}
   featureP4: {fileID: 2104932702}
   moveListUI: {fileID: 273419060}
+  startBlinkColor: {r: 1, g: 0.85, b: 0.2, a: 1}
 --- !u!1 &1250204966
 GameObject:
   m_ObjectHideFlags: 0
@@ -8933,7 +9010,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -699, y: 356}
+  m_AnchoredPosition: {x: 35, y: 331}
   m_SizeDelta: {x: 200, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1711725206

@@ -95,11 +95,14 @@ namespace SuperSmashLike.InputSystem
                     // 不加 bindingMask 时两套 InputManager 都响应所有按键 → 双人同输入 Bug。
                     // 按 playerID 只保留本玩家的 control scheme 组。
                     int pid = fighterController != null ? fighterController.playerID : 0;
-                    string group = pid == 0 ? "KeyboardP1" : pid == 1 ? "KeyboardP2" : "Gamepad";
-                    runtimeActions.bindingMask = InputBinding.MaskByGroup(group);
+                    string kbGroup = pid == 0 ? "KeyboardP1" : pid == 1 ? "KeyboardP2" : "Gamepad";
+                    bool ownsGamepad = (pid == 1);                     // 手柄固定给 P2
+                    runtimeActions.bindingMask = ownsGamepad
+                        ? InputBinding.MaskByGroups(kbGroup, "Gamepad")
+                        : InputBinding.MaskByGroup(kbGroup);
 
                     if (SmashDebug.IsOn(DebugChannel.Input))
-                        SmashDebug.Log(DebugChannel.Input, $"输入分组隔离: playerID={pid} → {group}");
+                        SmashDebug.Log(DebugChannel.Input, $"输入分组隔离: playerID={pid} → {kbGroup}");
                 }
             }
 
@@ -134,9 +137,10 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Shield").canceled += OnShieldCancelCtx;
             gameplayMap.FindAction("Grab").started += OnGrabCtx;
             gameplayMap.FindAction("Taunt").started += OnTauntCtx;
-            // 两个玩家的 InputManager 都会触发 → 只让 P1 订阅，避免"暂停→立即恢复"的双触发
-            if (fighterController != null && fighterController.playerID == 0)
-                gameplayMap.FindAction("Pause").started += OnPauseCtx;
+            // 暂停键对双方开放（2026-10-12）：P1 用键盘 Escape，P2 用手柄 Start（或键盘 Escape）。
+            // Escape 同属 KeyboardP1/KeyboardP2 两组 → 两个 InputManager 都会收到，
+            // 交给 OnPauseCtx 里的极短冷却去重，避免"暂停→立即恢复"。
+            gameplayMap.FindAction("Pause").started += OnPauseCtx;
 
             gameplayMap.Enable();
 
@@ -163,8 +167,7 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Shield").canceled -= OnShieldCancelCtx;
             gameplayMap.FindAction("Grab").started -= OnGrabCtx;
             gameplayMap.FindAction("Taunt").started -= OnTauntCtx;
-            if (fighterController != null && fighterController.playerID == 0)
-                gameplayMap.FindAction("Pause").started -= OnPauseCtx;
+            gameplayMap.FindAction("Pause").started -= OnPauseCtx;
 
             gameplayMap.Disable();
         }
@@ -233,9 +236,18 @@ namespace SuperSmashLike.InputSystem
             TauntPressed = true;   // 当前无消费方（嘲讽功能未实现）
         }
 
+        // 暂停去重时间戳（static：两个 InputManager 共用一个冷却）
+        private static float s_lastPauseToggleTime = -10f;
+
         // 【做什么】暂停/恢复切换
+        // 【注意】Escape 同属 KeyboardP1/KeyboardP2 两组 → 两个 InputManager 都会收到，
+        //   用 0.2s 冷却去重，避免一次按键触发"暂停→立即恢复"。
         private void OnPauseCtx(InputAction.CallbackContext ctx)
         {
+            if (GameManager.Instance == null) return;
+            if (Time.unscaledTime - s_lastPauseToggleTime < 0.2f) return;
+            s_lastPauseToggleTime = Time.unscaledTime;
+
             SmashDebug.Log(DebugChannel.Input, $"[Pause] 动作触发! state={GameManager.Instance.CurrentGameState}");
             if (GameManager.Instance.CurrentGameState == GameState.Battle)
                 GameManager.Instance.PauseGame();

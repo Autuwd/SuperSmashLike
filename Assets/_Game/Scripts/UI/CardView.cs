@@ -28,8 +28,11 @@ namespace SuperSmashLike.UI
         private RectTransform _rt;
         private Vector3 _baseScale;
 
-        private int _highlightedByPlayer = -1; // -1=无，0-3=玩家ID
-        private bool _isConfirmed = false;
+        // 多玩家标记（位掩码，bit0=P1 … bit3=P4）
+        private int _highlightMask;   // 正在高亮（未确认）该卡牌的玩家
+        private int _confirmMask;     // 已确认该卡牌的玩家
+        private int _markMask;        // 所有标记该卡牌的玩家 = highlight | confirm
+        private Color _blendColor = Color.white;
         private float _flashT;
 
         private void Awake()
@@ -47,18 +50,14 @@ namespace SuperSmashLike.UI
 
         private void Update()
         {
-            if (!_isConfirmed || highlightFrame == null || !highlightFrame.enabled)
+            // 仅在"有玩家确认"时闪烁
+            if (_confirmMask == 0 || highlightFrame == null || !highlightFrame.enabled)
                 return;
 
             // 确认状态下缓慢闪烁（线框透明度）
             _flashT += Time.unscaledDeltaTime * flashSpeed;
             float a = (Mathf.Sin(_flashT * Mathf.PI * 2f) + 1f) * 0.25f + 0.25f; // 0.25 ~ 0.75
-
-            if (_highlightedByPlayer >= 0 && _highlightedByPlayer < playerColors.Length)
-            {
-                Color baseCol = playerColors[_highlightedByPlayer];
-                highlightFrame.color = new Color(baseCol.r, baseCol.g, baseCol.b, a);
-            }
+            highlightFrame.color = new Color(_blendColor.r, _blendColor.g, _blendColor.b, a);
         }
 
         public void SetData(FighterData fd, System.Action onSelect)
@@ -76,68 +75,44 @@ namespace SuperSmashLike.UI
             }
         }
 
-        // 设置高亮（未确认状态：实线边框，不闪烁）
-        public void SetHighlighted(int playerId)
+        // 【核心】设置该卡牌的玩家标记状态（支持多玩家叠加）
+        //   highlightMask：正在高亮（未确认）该卡牌的玩家位掩码
+        //   confirmMask  ：已确认该卡牌的玩家位掩码
+        // 【重点】多个玩家同时标记同一卡牌时，高亮色 = 各玩家颜色"叠加混合"，
+        //         而不是单个玩家的颜色（修复 P2 标记被 P1 覆盖、始终不变的问题）
+        public void SetState(int highlightMask, int confirmMask)
         {
-            _highlightedByPlayer = playerId;
-            _isConfirmed = false;
-            _flashT = 0f;
+            _highlightMask = highlightMask & 0xF;
+            _confirmMask = confirmMask & 0xF;
+            _markMask = (_highlightMask | _confirmMask) & 0xF;
 
-            if (_rt)
-                _rt.localScale = (playerId >= 0) ? _baseScale * highlightScale : _baseScale;
-
-            if (highlightFrame != null)
+            if (_markMask == 0)
             {
-                if (playerId < 0)
-                {
-                    highlightFrame.enabled = false;
-                    highlightFrame.color = new Color(1f, 1f, 1f, 0f);
-                }
-                else
-                {
-                    highlightFrame.enabled = true;
-                    int pid = Mathf.Clamp(playerId, 0, 3);
-                    Color col = playerColors[pid];
-                    // 未确认：边框完全显现（线框风格）
-                    highlightFrame.color = new Color(col.r, col.g, col.b, 1f);
-                }
+                ClearState();
+                return;
             }
-        }
 
-        // 设置确认状态（边框进入闪烁）
-        public void SetConfirmed(int playerId, bool confirmed)
-        {
-            if (playerId < 0 || playerId > 3)
-                playerId = 0;
-
-            _highlightedByPlayer = playerId;
-            _isConfirmed = confirmed;
+            _blendColor = BlendColors(_markMask);
             _flashT = 0f;
 
             if (_rt)
-                _rt.localScale = confirmed ? _baseScale * highlightScale : _baseScale;
+                _rt.localScale = _baseScale * highlightScale;
 
             if (highlightFrame != null)
             {
                 highlightFrame.enabled = true;
-                Color col = playerColors[_highlightedByPlayer];
-                if (confirmed)
-                {
-                    // 确认初始半透明，Update 会接管闪烁
-                    highlightFrame.color = new Color(col.r, col.g, col.b, 0.5f);
-                }
-                else
-                {
-                    highlightFrame.color = new Color(col.r, col.g, col.b, 1f);
-                }
+                // 已确认 → 半透明起步，交给 Update 闪烁；未确认 → 实色边框
+                float a = (_confirmMask != 0) ? 0.5f : 1f;
+                highlightFrame.color = new Color(_blendColor.r, _blendColor.g, _blendColor.b, a);
             }
         }
 
         // 清除所有高亮状态
         public void ClearState()
         {
-            _highlightedByPlayer = -1;
-            _isConfirmed = false;
+            _highlightMask = 0;
+            _confirmMask = 0;
+            _markMask = 0;
             _flashT = 0f;
 
             if (_rt) _rt.localScale = _baseScale;
@@ -146,6 +121,20 @@ namespace SuperSmashLike.UI
                 highlightFrame.enabled = false;
                 highlightFrame.color = new Color(1f, 1f, 1f, 0f);
             }
+        }
+
+        // 把 mask 中所有玩家的颜色相加（clamp 到 1）→ 多人同选时呈现叠加色
+        // 例：红(P1)+蓝(P2)=品红；红(P1)+绿(P2 变体)=黄；红+蓝+绿=白
+        private Color BlendColors(int mask)
+        {
+            float r = 0f, g = 0f, b = 0f;
+            for (int p = 0; p < 4; p++)
+            {
+                if ((mask & (1 << p)) == 0) continue;
+                Color c = (p < playerColors.Length) ? playerColors[p] : Color.white;
+                r += c.r; g += c.g; b += c.b;
+            }
+            return new Color(Mathf.Clamp01(r), Mathf.Clamp01(g), Mathf.Clamp01(b), 1f);
         }
     }
 }
