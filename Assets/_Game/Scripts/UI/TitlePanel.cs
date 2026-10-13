@@ -85,7 +85,8 @@ namespace SuperSmashLike.UI
 
             var kbSubmit = Input.GetKeyDown(KeyCode.Return) ||
                            Input.GetKeyDown(KeyCode.Space) ||
-                           Input.GetKeyDown(KeyCode.J);
+                           Input.GetKeyDown(KeyCode.J) ||
+                           Input.GetKeyDown(KeyCode.Keypad1);
 
             var gp = Gamepad.current;
             bool gpSubmit = gp != null && (gp.buttonSouth.wasPressedThisFrame || gp.buttonWest.wasPressedThisFrame);

@@ -126,6 +126,8 @@ namespace SuperSmashLike.Core
         //   改 Inspector 那个不生效、或改 profile 那个被覆盖，而两边"看起来"都像生效了。
         //   默认 Hard 档 = 0.2s / 0.3s，与删掉的那两个默认值完全一致 → 行为零变化。
         [SerializeField] private Difficulty difficulty = Difficulty.Hard;
+        [Tooltip("勾选后，进入战斗时用 GameSettings.cpuDifficulty（规则选择界面）覆盖上面的档位")]
+        [SerializeField] private bool difficultyFromSettings = true;
         [SerializeField] private float attackRange = 1.6f;          // 攻击判定水平距离
         [SerializeField] private float attackHysteresis = 0.2f;     //滞回系数：0.2 = 在 attackRange 上下各留 20% 死区
         [SerializeField] private float highDamageThreshold = 80f;   //自身伤害超过此值就脱离战斗
@@ -222,6 +224,34 @@ namespace SuperSmashLike.Core
             // （括号里读 me.name 也顺带消掉了 CS0414，D2 就不需要这行了）
             if (SmashDebug.IsOn(DebugChannel.State))
                 SmashDebug.Log(DebugChannel.State, $"CPUPlayer 就绪 | 目标={me.name} | 类型={(isRangedFighter ? "远程" : "近战")}");
+        }
+
+        // M4-D3：订阅战斗开始，用规则选择界面设定的难度覆盖档位
+        private void Start()
+        {
+            ApplyDifficultyFromSettings();
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnGameStateChanged += HandleStateChanged_ApplyDifficulty;
+        }
+
+        private void OnDestroy()
+        {
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnGameStateChanged -= HandleStateChanged_ApplyDifficulty;
+        }
+
+        private void HandleStateChanged_ApplyDifficulty(GameState state)
+        {
+            if (state == GameState.Battle) ApplyDifficultyFromSettings();
+        }
+
+        // 【做什么】从全局规则读取 CPU 难度（0=简单 … 3=疯狂）
+        private void ApplyDifficultyFromSettings()
+        {
+            if (!difficultyFromSettings) return;
+            var gs = (GameManager.Instance != null) ? GameManager.Instance.gameSettings : null;
+            if (gs == null) return;
+            difficulty = (Difficulty)Mathf.Clamp(gs.cpuDifficulty, 0, 3);
         }
 
         private void Update()
@@ -350,12 +380,30 @@ namespace SuperSmashLike.Core
             //   只留 inBand 的话远程角色永远走不到 ChooseStrike 的投射物分支。
             bool inRangedBand = InRangedBand(p);
 
+            // 【新增】目标已离开台面 → 不追击，优先回台心/自保
+            if (safeBoundsResolved && foe != null)
+            {
+                Vector3 t = foe.transform.position;
+                FighterState tfs = foe.StateMachine.CurrentState;
+                bool targetOffStage = t.y <= safeMinY + edgeDangerMargin + 1.5f
+                                    || t.x <= safeMinX + edgeDangerMargin + 0.5f
+                                    || t.x >= safeMaxX - edgeDangerMargin - 0.5f
+                                    || tfs == FighterState.Dead;
+                if (targetOffStage && !p.SelfNearEdge)
+                {
+                    Enter(CPUState.Hop);
+                    return;
+                }
+            }
+
             // 【新增 · D2-③】边缘求生优先级【最高】，压在所有战斗反应之上。
             //   理由：Retreat 会往远离对手的方向走、Approach 会往对手方向走，
             //   当两者方向恰好都指着台外时，这两个状态就是【自杀指令】。
             //   站在台边时先回台心，比挡一下、挥一拳重要得多。
             // 【注意】故意不受 attackEnabled 约束：调试开关关掉进攻不代表允许掉出界。
-            if (p.SelfNearEdge)
+            // 边缘求生：不仅自己靠边危险时回台心；也强制在底部极靠近时尝试回归（更容易跳返场）
+            bool nearBottom = me.transform.position.y <= safeMinY + edgeDangerMargin + 0.8f;
+            if (p.SelfNearEdge || nearBottom)
             {
                 Enter(CPUState.Hop);
                 return;
@@ -404,6 +452,12 @@ namespace SuperSmashLike.Core
                 Enter(CPUState.Idle); 
                 return; 
             }
+            // 如果对手在高处（平台上），尝试跳起追击；否则接近
+            if (foe != null && foe.transform.position.y - me.transform.position.y > 0.6f && CanJumpNow())
+            {
+                Enter(CPUState.Hop);
+                return;
+            }
             Enter(CPUState.Approach);
         }
 
@@ -419,16 +473,29 @@ namespace SuperSmashLike.Core
                     break;
 
                 case CPUState.Approach:
+                    // 【安全守卫】目标离台 → 放弃追击，回台心
+                    if (safeBoundsResolved && foe != null)
+                    {
+                        Vector3 t = foe.transform.position;
+                        FighterState tfs = foe.StateMachine.CurrentState;
+                        bool targetOffStage = t.y <= safeMinY + edgeDangerMargin + 1.5f
+                                            || t.x <= safeMinX + edgeDangerMargin + 0.5f
+                                            || t.x >= safeMaxX - edgeDangerMargin - 0.5f
+                                            || tfs == FighterState.Dead;
+                        if (targetOffStage)
+                        {
+                            Enter(CPUState.Hop);
+                            break;
+                        }
+                    }
                     // 【新增 · D2-⑤】远程角色进入射程就停步风筝。
-                    //   不停的话远程角色会一路贴到对手脸上，远程招式永远放不出来
-                    //   （ChooseStrike 只在 p.Distance >= rangedFireMinDistance 时才选投射物技，
-                    //   而 rangedHoldDistance > rangedFireMinDistance，两者之间的区间就是"站着打"区）。
                     if (isRangedFighter && p.Distance <= rangedHoldDistance) { Stop(); break; }
-                    // 【注意】进带了却在冷却中 → 原地等。
-                    //   不判断的话会直接撞进对手怀里（方向永远是"靠近"）。
-                    // 【调试】attackEnabled=false 时同样要原地停：否则 AI 会一路挤到你身上，
-                    //   body-block 掉你的走位 —— 它不出招了，但挡着你，比出招还碍事。
                     if (inBand && (!attackEnabled || Time.time < strikeReadyTime)) { Stop(); break; }
+                    // 高度差：对手在上方，优先跳跃而不是水平走
+                    if (foe != null && foe.transform.position.y - me.transform.position.y > 0.8f && CanJumpNow())
+                    {
+                        me.TryJump();
+                    }
                     me.MoveInput = new Vector2(p.Direction, 0f);
                     break;
 
@@ -617,6 +684,9 @@ namespace SuperSmashLike.Core
             if (state == CPUState.Hop)
             {
                 hopStartTime = Time.time;
+                // 进入边缘求生时，优先起跳尝试返场
+                if (CanJumpNow())
+                    me.TryJump();
             }
 
             if (SmashDebug.IsOn(DebugChannel.State))
@@ -672,14 +742,7 @@ namespace SuperSmashLike.Core
                     $"CPU 出招 {atk.attackName} 前摇{atk.startupTime:F2}/判定{atk.activeTime:F2}/后摇{atk.recoveryTime:F2} 合计{atk.TotalDuration:F2}s");
         }
 
-        // 出招预检
-        // 【重点】TryAttack / TrySpecial 都返回 void，且内部多处【静默 return】，
-        //   调用方拿不到任何反馈 → 失败只能自己预检，否则会对着硬直空气挥空。
-        //   这里逐条对齐两个入口的拒绝条件：
-        //   ① CanAct()  → 一网打尽 Attack/Shield/Dead/Hit/Stun/Knockback
-        //   ② isInKnockback → 独立标志：状态可能已落回 Fall，人还在击飞
-        //   ③ isAttacking / isShielding → TrySpecial 的两条额外守卫
-        //      （TrySpecial:997-1002），不挡的话会在出招中途叠一发，或举盾时凭空放弹
+            // 出招预检
         private bool CanStartStrike(AttackData atk)
         {
             if (me == null || me.fighterData == null) return false;
@@ -716,9 +779,7 @@ namespace SuperSmashLike.Core
             if (me.remainingJumps <= 0) return false;
             if (me.isInKnockback) return false;
             if (!me.StateMachine.CanAct()) return false;
-            bool isFirstJump = me.remainingJumps == me.fighterData.jumpCount;
-            if (isFirstJump && !me.IsGrounded) return false;   // 一段跳要求贴地
-            return true;
+            return true; // 不限制一段跳必须贴地，允许空中也跳（二段跳）
         }
 
         // 战斗门禁：与 InputManager.cs 的 playable 判定保持一致
@@ -804,12 +865,17 @@ namespace SuperSmashLike.Core
             //   例如双方都在台边互相把对方推出去，会一直触发 Hop。
             if (Time.time - hopStartTime >= hopMaxDuration) { Enter(CPUState.Approach); return; }
 
-            // 掉到台面以下才起跳。贴地时朝台心走就够，不必浪费一跳。
-            if (!p.SelfGrounded && me.transform.position.y <= safeMinY + 1f && CanJumpNow())
+            // 边缘求生：如果自己在空中（掉出平台）或快要掉下去，优先起跳抢回高度；贴地时朝台心走
+            bool needJump = me.IsGrounded == false && me.transform.position.y <= safeMinY + 1.5f && CanJumpNow();
+            // 自己还在地面但已经很靠近底部危险带（快掉下平台边缘）也尝试起跳
+            if (!needJump && me.IsGrounded && me.transform.position.y <= safeMinY + edgeDangerMargin + 0.5f && CanJumpNow())
+                needJump = true;
+            if (needJump)
             {
                 me.TryJump();
             }
 
+            // 朝台心移动；如果没能起跳也继续往台心走
             me.MoveInput = new Vector2(p.SelfTowardCenterX, 0f);
         }
 

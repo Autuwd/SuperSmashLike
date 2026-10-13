@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 038cab4f669471c4fbf057ef14d55408, type: 3}
   m_Name: SD_Arena
   m_EditorClassIdentifier: 
-  stageName: BattleArena
-  stageThumbnail: {fileID: 0}
+  stageName: "\u5929\u7A7A\u7ADE\u6280\u573A"
+  stageThumbnail: {fileID: 21300000, guid: bc7f38b6f5365b646b9429ae3f82763a, type: 3}
   stagePrefab: {fileID: 2044232622848991443, guid: 86b26081e12e7364ab50490098a531d3, type: 3}
   cameraBoundsMin: {x: -20, y: -10}
   cameraBoundsMax: {x: 20, y: 15}

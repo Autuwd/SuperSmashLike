@@ -96,6 +96,7 @@ namespace SuperSmashLike.Core
 
         [Header("Hit")]
         public float hitReactKnockSpeedThreshold = 3f;  // 低于 = 轻击 → Hit（初值待实测）
+        public int lastAttackerPlayerId = -1;           // 最后攻击者 playerID（-1 = 环境/无攻击者）
 
         [Header("Feel")]
         public float gravityScale = 2.2f;         // 角色专属重力倍率（默认×1=标准重力）
@@ -224,7 +225,7 @@ namespace SuperSmashLike.Core
 
         public System.Action<FighterState, FighterState> OnStateChanged;   // 状态变化（转发自状态机）
         public System.Action<float, FighterController> OnDamaged;          // 受伤（伤害值, 攻击者）
-        public System.Action<FighterController> OnKilled;                  // 被击杀
+        public System.Action<FighterController, int> OnKilled;              // 被击杀（victim, killerPlayerId）
         public System.Action<FighterController> OnParrySuccess;            // 盾反成功（参数=被反的攻击者）
 
         #endregion
@@ -268,6 +269,7 @@ namespace SuperSmashLike.Core
             remainingJumps = fighterData.jumpCount;                            // 满跳跃次数
             specialUpUsed = false;                                             // 恢复上B
             remainingStocks = GameManager.Instance.gameSettings.stockCount;    // 同步剩余命数
+            lastAttackerPlayerId = -1;
             GameManager.Instance.RegisterFighter(this);                        // 向 GameManager 注册
         }
 
@@ -1240,6 +1242,10 @@ namespace SuperSmashLike.Core
             if (isInvincible || StateMachine.CurrentState == FighterState.Dead)
                 return;
 
+            // 记录最后攻击者（环境攻击为 null 时保持原值？但环境不通过此入口）
+            if (attacker != null)
+                lastAttackerPlayerId = attacker.playerID;
+
             if (SmashDebug.IsOn(DebugChannel.Combat))
                 SmashDebug.Log(DebugChannel.Combat, $"命中！防御方={name} isShielding={isShielding} 帧={Time.frameCount}");
 
@@ -1572,6 +1578,7 @@ namespace SuperSmashLike.Core
             knockbackVelocity = Vector2.zero;
             velocity = Vector2.zero;
             isInKnockback = false;
+            lastAttackerPlayerId = -1;
             respawnLockTimer = respawnLockTime;        // 前段：可见但锁定
             respawnTimer = respawnLockTime + GameManager.Instance.gameSettings.respawnTime;  // 无敌 = 锁定段 + 行动后延长段
             isInvincible = true;
@@ -1619,7 +1626,7 @@ namespace SuperSmashLike.Core
                 SmashDebug.Log(DebugChannel.Match, $"扣命后剩余: {remainingStocks}");
 
             StateMachine.TransitionTo(FighterState.Dead);
-            OnKilled?.Invoke(this);
+            OnKilled?.Invoke(this, lastAttackerPlayerId);
 
             _isKilling = false;
         }

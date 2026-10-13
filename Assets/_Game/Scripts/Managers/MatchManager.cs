@@ -70,8 +70,9 @@ namespace SuperSmashLike.Managers
 
         // 委托缓存（订阅/退订对称的关键）
         private readonly Dictionary<FighterController, System.Action<float, FighterController>> _damagedHandlers = new();
-        private readonly Dictionary<FighterController, System.Action<FighterController>> _killedHandlers = new();
+        private readonly Dictionary<FighterController, System.Action<FighterController, int>> _killedHandlers = new();
         private readonly HashSet<FighterController> _registeredFighters = new();   // 防重复注册
+        private int[] _koCounts = new int[4];
 
         #endregion
 
@@ -135,7 +136,8 @@ namespace SuperSmashLike.Managers
             _matchStarted = false;   // 重置，允许重赛再次开赛
 
             IsMatchActive = false;
-            OnGameOver?.Invoke(winnerID);
+            // 通知结算面板填充统计（顺带传 KO 统计）
+            if (OnGameOver != null) OnGameOver.Invoke(winnerID);
             GameManager.Instance.EndMatch();   // 通知 GameManager 切换到结算状态
         }
 
@@ -197,13 +199,14 @@ namespace SuperSmashLike.Managers
 
             while (IsMatchActive)
             {
-                MatchTimeRemaining -= Time.deltaTime;
+                // 计时钳到 0（不显示负数时间）
+                MatchTimeRemaining = Mathf.Max(0f, MatchTimeRemaining - Time.deltaTime);
                 OnTimerUpdated?.Invoke(MatchTimeRemaining);
 
-                // 时间制：时间到 → 结束
-                if (settings.matchMode == GameSettings.MatchMode.Time && MatchTimeRemaining <= 0f)
+                // 时间到 → 命数制/时间制都结束；胜者按 命数 → 击飞值(越小越好) 判定
+                if (MatchTimeRemaining <= 0f)
                 {
-                    EndMatch();
+                    EndMatch(DecideWinnerByTime());
                     yield break;
                 }
 
@@ -308,7 +311,7 @@ namespace SuperSmashLike.Managers
                 f.OnDamaged += dmgHandler;
                 _damagedHandlers[f] = dmgHandler;
 
-                System.Action<FighterController> killHandler = victim => OnFighterKilledHandler(victim);
+                System.Action<FighterController, int> killHandler = (victim, killerId) => OnFighterKilledHandler(victim, killerId);
                 f.OnKilled += killHandler;
                 _killedHandlers[f] = killHandler;
             }
@@ -338,7 +341,7 @@ namespace SuperSmashLike.Managers
             f.OnDamaged += newDmg;
             _damagedHandlers[f] = newDmg;
 
-            System.Action<FighterController> newKill = victim => OnFighterKilledHandler(victim);
+            System.Action<FighterController, int> newKill = (victim, killerId) => OnFighterKilledHandler(victim, killerId);
             f.OnKilled += newKill;
             _killedHandlers[f] = newKill;
         }
@@ -448,12 +451,16 @@ namespace SuperSmashLike.Managers
         }
 
         // 【做什么】被击杀 → 刷新命数显示
-        private void OnFighterKilledHandler(FighterController victim)
+        private void OnFighterKilledHandler(FighterController victim, int killerId)
         {
             if (SmashDebug.IsOn(DebugChannel.Match))
-                SmashDebug.Log(DebugChannel.Match, $"收到击杀事件: {victim.name} 剩余命数={victim.remainingStocks}");
+                SmashDebug.Log(DebugChannel.Match, $"收到击杀事件: {victim.name} 击杀者={killerId} 剩余命数={victim.remainingStocks}");
 
             int id = victim.playerID;
+            // 统计 KO：killerId 有效且非自己
+            if (killerId >= 0 && killerId < _koCounts.Length && killerId != id)
+                _koCounts[killerId]++;
+
             if (settings.matchMode != GameSettings.MatchMode.Stock) return;
             if (id < 0 || id >= _stockDisplays.Length || _stockDisplays[id] == null) return;
 
@@ -473,7 +480,8 @@ namespace SuperSmashLike.Managers
                              || prev == GameState.Paused
                              || prev == GameState.Result;
 
-            if ((newState == GameState.Title || newState == GameState.CharacterSelect) && leavingMatch)
+            if ((newState == GameState.Title || newState == GameState.CharacterSelect
+                 || newState == GameState.StageSelect || newState == GameState.RuleSelect) && leavingMatch)
             {
                 ResetMatchData();     // 只有"打完/暂停后离开"才清零一次
                 return;
@@ -481,7 +489,16 @@ namespace SuperSmashLike.Managers
 
             if (newState != GameState.Battle) return;       // 其它状态照旧早退
 
-            if (!_matchStarted) { StartMatch(); _matchStarted = true; }
+            if (!_matchStarted)
+            {
+                // M4-D2：开赛前先加载所选舞台（回填出生点 / 相机边界）
+                if (StageManager.Instance != null) StageManager.Instance.LoadSelectedStage();
+                settings = GameManager.Instance.gameSettings;   // 规则面板可能刚改过，重读引用
+                ResetMatchData();                                // 按新规则复位命数/HUD/位置
+                BindPortraits();                                 // 绑定各玩家头像到菱形 HUD
+                StartMatch();
+                _matchStarted = true;
+            }
 
             var players = GameManager.Instance.ActivePlayers;
             foreach (var f in players) RebindFighterEvents(f);
@@ -503,6 +520,54 @@ namespace SuperSmashLike.Managers
         {
             if (spawnPoints == null || spawnPoints.Length == 0) return transform;
             return spawnPoints[Mathf.Abs(f.playerID) % spawnPoints.Length];
+        }
+
+        // 【做什么】把每个玩家的角色头像绑定到菱形 HUD（读 FighterData.portraitIcon）
+        private void BindPortraits()
+        {
+            var players = GameManager.Instance != null ? GameManager.Instance.ActivePlayers : null;
+            if (players == null) return;
+
+            foreach (var f in players)
+            {
+                if (f == null || f.fighterData == null) continue;
+                int id = f.playerID;
+                if (id < 0 || id >= _damageDisplays.Length || _damageDisplays[id] == null) continue;
+                _damageDisplays[id].SetPortrait(f.fighterData.portraitIcon);
+            }
+        }
+
+        // 【做什么】时间到判胜：命数多者胜；同命数比击飞值（小者胜）；都相同 = 平局
+        // 【返回】胜者 playerID；-1 = 平局/无胜者
+        private int DecideWinnerByTime()
+        {
+            var players = GameManager.Instance != null ? GameManager.Instance.ActivePlayers : null;
+            if (players == null || players.Count == 0) return -1;
+
+            FighterController best = null;
+            bool draw = false;
+
+            foreach (var p in players)
+            {
+                if (p == null) continue;
+                if (best == null) { best = p; continue; }
+
+                int cmp = CompareWinner(p, best);
+                if (cmp > 0) { best = p; draw = false; }   // 出现更优者
+                else if (cmp == 0) { draw = true; }        // 与当前最优并列
+            }
+
+            return (best != null && !draw) ? best.playerID : -1;
+        }
+
+        // 【做什么】比较两名玩家：>0 a 更优，<0 b 更优，0 持平（命数优先，其次击飞值小者优）
+        private static int CompareWinner(FighterController a, FighterController b)
+        {
+            if (a.remainingStocks != b.remainingStocks)
+                return a.remainingStocks > b.remainingStocks ? 1 : -1;
+            if (!Mathf.Approximately(a.CurrentDamage, b.CurrentDamage))
+                return a.CurrentDamage < b.CurrentDamage ? 1 : -1;
+            return 0;
         }
 
         // 【做什么】重开后清零：比分、命数、伤害显示全部归位
@@ -534,6 +599,9 @@ namespace SuperSmashLike.Managers
             _registeredFighters.Clear();
             foreach (var f in GameManager.Instance.ActivePlayers)
                 if (f != null) _registeredFighters.Add(f);
+
+            // 6. 清空 KO 统计
+            for (int i = 0; i < _koCounts.Length; i++) _koCounts[i] = 0;
         }
 
         #endregion

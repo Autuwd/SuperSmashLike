@@ -12,12 +12,14 @@ using System.Collections.Generic;
 namespace SuperSmashLike.Core
 {
     // 游戏流程状态枚举
-    // 场景流转: Boot → Title → CharacterSelect → Battle → Result
+    // 场景流转: Boot → Title → CharacterSelect → StageSelect → RuleSelect → Battle → Result
     public enum GameState
     {
         Boot,              // 启动/加载界面
         Title,             // 标题画面
         CharacterSelect,   // 选人界面（多人依次选择）
+        StageSelect,       // 地图选择界面（单人流程 · M4-D2）
+        RuleSelect,        // 规则选择界面（单人流程 · M4-D3）
         BattleLoading,     // 加载战斗场景
         Battle,            // 战斗中（核心玩法进行中）
         Paused,            // 暂停（Time.timeScale = 0）

@@ -1,5 +1,6 @@
 using SuperSmashLike.Core;
 using SuperSmashLike.Managers;
+using System.Reflection;
 using UnityEngine;
 
 // ============================================================
@@ -23,6 +24,8 @@ namespace SuperSmashLike.UI
         [Header("Panels")]
         [SerializeField] private GameObject titlePanel;            // 标题面板（可选）
         [SerializeField] private GameObject characterSelectPanel;  // 选人面板
+        [SerializeField] private GameObject stageSelectPanel;      // 地图选择面板（M4-D2）
+        [SerializeField] private GameObject ruleSelectPanel;       // 规则选择面板（M4-D3）
         [SerializeField] private GameObject resultsPanel;          // 结算面板
         [SerializeField] private GameObject hud;                   // 战斗 HUD
         [SerializeField] private GameObject pausePanel;            // 暂停面板
@@ -116,7 +119,23 @@ namespace SuperSmashLike.UI
             if (!_resultsPanel)
                 _resultsPanel = resultsPanel ? resultsPanel.GetComponent<ResultsPanel>() : null;
 
-            if (_resultsPanel) _resultsPanel.SetWinner(winnerId);
+            if (_resultsPanel)
+            {
+                // 读取 KO 统计：MatchManager 的 _koCounts 是 private，改为 internal 或通过属性
+                // 简化：直接反射读取（临时方案，保持改动最小）
+                var mm = MatchManager.Instance;
+                int[] koArr = new int[4];
+                if (mm != null)
+                {
+                    var f = mm.GetType().GetField("_koCounts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (f != null)
+                    {
+                        var arr = f.GetValue(mm) as int[];
+                        if (arr != null) System.Array.Copy(arr, koArr, koArr.Length);
+                    }
+                }
+                _resultsPanel.SetStats(winnerId, koArr, 4);
+            }
         }
 
         // 【做什么】游戏状态变化 → 一次只显示一个主面板，HUD 单独控制
@@ -124,12 +143,16 @@ namespace SuperSmashLike.UI
         {
             bool showTitle = state == GameState.Title;
             bool showSelect = state == GameState.CharacterSelect;
+            bool showStage = state == GameState.StageSelect;
+            bool showRule = state == GameState.RuleSelect;
             bool showResult = state == GameState.Result;
             bool showPause = state == GameState.Paused;
             bool showHUD = state == GameState.Battle || state == GameState.Paused;
 
             if (titlePanel)           titlePanel.SetActive(showTitle);
             if (characterSelectPanel) characterSelectPanel.SetActive(showSelect);
+            if (stageSelectPanel)     stageSelectPanel.SetActive(showStage);
+            if (ruleSelectPanel)      ruleSelectPanel.SetActive(showRule);
             if (resultsPanel)         resultsPanel.SetActive(showResult);
             if (pausePanel)           pausePanel.SetActive(showPause);
             if (hud)                  hud.SetActive(showHUD);
@@ -144,6 +167,8 @@ namespace SuperSmashLike.UI
         {
             if (titlePanel)           titlePanel.SetActive(active);
             if (characterSelectPanel) characterSelectPanel.SetActive(active);
+            if (stageSelectPanel)     stageSelectPanel.SetActive(active);
+            if (ruleSelectPanel)      ruleSelectPanel.SetActive(active);
             if (resultsPanel)         resultsPanel.SetActive(active);
             if (hud)                  hud.SetActive(active);
         }

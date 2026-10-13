@@ -37,6 +37,11 @@ namespace SuperSmashLike.Core
         public float damageRatio = 1f;                  // 伤害比例（全局难度缩放，已生效）
         public bool enableTeamMode;                     // 团队模式（未实现，无人读取）
 
+        // 【M4-D3】CPU 难度（0=简单 1=普通 2=困难 3=疯狂）
+        // 由规则选择界面写入，CPUPlayer 在进入战斗时读取覆盖自身档位。
+        [Header("CPU")]
+        [Range(0, 3)] public int cpuDifficulty = 1;
+
         #endregion
 
         #region 2. 出生与边界
@@ -91,6 +96,55 @@ namespace SuperSmashLike.Core
         // 【返回】下标越界或未选择时返回 null
         public FighterData GetSelection(int playerIndex)
             => playerIndex >= 0 && playerIndex < _selections.Length ? _selections[playerIndex] : null;
+
+        #endregion
+
+        #region 5.5 舞台与单人流程（M4-D2 / D3）
+
+        [Header("Stage Select")]
+        public List<StageData> selectableStages = new();   // 可选舞台列表（Inspector 配置，M4 为 3 个）
+
+        // 当前选中的舞台（不序列化，靠 ScriptableObject 资产实现跨状态保持）
+        private StageData _selectedStage;
+
+        // 【做什么】返回可选舞台列表（供选图面板用）
+        public List<StageData> GetSelectableStages() => selectableStages;
+
+        // 【做什么】记录选中的舞台（M4-D2 确认锁定时写入）
+        public void SetSelectedStage(StageData sd) => _selectedStage = sd;
+
+        // 【做什么】读取选中的舞台；未选择时回退到列表第一个（都没有则 null）
+        public StageData GetSelectedStage()
+        {
+            if (_selectedStage != null) return _selectedStage;
+            return (selectableStages != null && selectableStages.Count > 0) ? selectableStages[0] : null;
+        }
+
+        // 【做什么】CPU 难度中文名（UI 显示用）
+        public static string GetCpuDifficultyName(int d)
+        {
+            switch (d)
+            {
+                case 0: return "简单";
+                case 1: return "普通";
+                case 2: return "困难";
+                case 3: return "疯狂";
+                default: return "普通";
+            }
+        }
+
+        // 【做什么】CPU 难度一句话说明（UI 显示用）
+        public static string GetCpuDifficultyDesc(int d)
+        {
+            switch (d)
+            {
+                case 0: return "反应慢 · 少攻击";
+                case 1: return "反应适中 · 基本连段";
+                case 2: return "反应快 · 会防御闪避";
+                case 3: return "预读输入 · 压制力强";
+                default: return "";
+            }
+        }
 
         #endregion
 

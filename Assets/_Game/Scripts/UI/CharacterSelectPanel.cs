@@ -188,6 +188,7 @@ namespace SuperSmashLike.UI
                 up = KeyCode.W;      down = KeyCode.S;
                 left = KeyCode.A;    right = KeyCode.D;
                 confirm = KeyCode.J; cancel = KeyCode.K;
+                // 允许 1/2 也可操作
                 reroll = KeyCode.L;  moves = KeyCode.Space;
             }
             else
@@ -203,8 +204,9 @@ namespace SuperSmashLike.UI
             // 本面板不再移动卡牌；取消键(K/小键盘2)=返回，关闭出招表。
             if (IsMoveListOpen)
             {
-                if (Input.GetKeyDown(cancel) ||
-                    (Input.GetKeyDown(moves) && _moveListOwnerPid == pid))
+                bool kbCancel = Input.GetKeyDown(cancel);
+                if (pid == 1) kbCancel |= Input.GetKeyDown(KeyCode.Keypad2);
+                if (kbCancel || (Input.GetKeyDown(moves) && _moveListOwnerPid == pid))
                     CloseMoveList();
                 return;
             }
@@ -212,11 +214,19 @@ namespace SuperSmashLike.UI
             // 已确认：允许取消 / 出招表 / 全部确认时用确认键开始
             if (_confirmed[pid])
             {
-                if (Input.GetKeyDown(cancel))
+                bool kbCancel2 = Input.GetKeyDown(cancel);
+                bool kbConfirm2 = Input.GetKeyDown(confirm);
+                // 小键盘只对 P2 生效
+                if (pid == 1)
+                {
+                    kbCancel2 |= Input.GetKeyDown(KeyCode.Keypad2);
+                    kbConfirm2 |= Input.GetKeyDown(KeyCode.Keypad1);
+                }
+                if (kbCancel2)
                     CancelPlayer(pid);
                 else if (Input.GetKeyDown(moves))
                     ShowMoveListFor(pid);
-                else if (Input.GetKeyDown(confirm) && AllConfirmed())
+                else if (kbConfirm2 && AllConfirmed())
                     StartMatch();
                 return;
             }
@@ -246,13 +256,15 @@ namespace SuperSmashLike.UI
                 moved = true;
             }
 
-            if (Input.GetKeyDown(confirm))
-                ConfirmPlayer(pid);
+                bool kbConfirmUnconfirmed = Input.GetKeyDown(confirm);
+                if (pid == 1) kbConfirmUnconfirmed |= Input.GetKeyDown(KeyCode.Keypad1);
+                if (kbConfirmUnconfirmed)
+                    ConfirmPlayer(pid);
             else if (Input.GetKeyDown(reroll))
                 RandomizeFor(pid);
             else if (Input.GetKeyDown(moves))
                 ShowMoveListFor(pid);
-            else if (Input.GetKeyDown(cancel))
+            else if (Input.GetKeyDown(cancel) || (pid == 1 && Input.GetKeyDown(KeyCode.Keypad2)))
                 BackToTitle();   // 未确认时按取消返回标题界面
 
             if (moved)
@@ -537,7 +549,8 @@ namespace SuperSmashLike.UI
         {
             if (!AllConfirmed()) return;
             if (GameManager.Instance == null) return;
-            GameManager.Instance.StartMatch();
+            // M4-D2：全部角色确认后先进入「地图选择」，不再直接开赛
+            GameManager.Instance.SwitchState(GameState.StageSelect);
         }
 
         #endregion
