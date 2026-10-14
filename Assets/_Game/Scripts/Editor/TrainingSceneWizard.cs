@@ -357,12 +357,41 @@ public static class TrainingSceneWizard
         mprt.anchorMin = Vector2.zero; mprt.anchorMax = Vector2.one;
         mprt.offsetMin = Vector2.zero; mprt.offsetMax = Vector2.zero;
 
-        // 主菜单页：按当前尺寸自建 4 个按钮（不再克隆暂停菜单按钮）
-        var mb0 = MakeButton(mainPage.transform, template, font, "MainContinue", "继续", new Vector2(0.5f, 0.62f), new Vector2(420f, 56f));
-        var mb1 = MakeButton(mainPage.transform, template, font, "MainRestart", "重新开始", new Vector2(0.5f, 0.50f), new Vector2(420f, 56f));
-        var mb2 = MakeButton(mainPage.transform, template, font, "MainMoveList", "出招表", new Vector2(0.5f, 0.38f), new Vector2(420f, 56f));
-        var mb3 = MakeButton(mainPage.transform, template, font, "MainExit", "返回标题", new Vector2(0.5f, 0.26f), new Vector2(420f, 56f));
-        SetObjectArrayProp(so, "mainButtons", new Button[] { mb0, mb1, mb2, mb3 });
+        // 主菜单页 = 直接克隆暂停菜单的按钮（连同位置尺寸）→ 两个菜单的"主菜单"完全一致
+        var mainList = new System.Collections.Generic.List<Button>(4);
+        if (pausePanel is RectTransform prt0)
+        {
+            mprt.anchorMin = prt0.anchorMin; mprt.anchorMax = prt0.anchorMax;
+            mprt.pivot = prt0.pivot; mprt.sizeDelta = prt0.sizeDelta; mprt.anchoredPosition = prt0.anchoredPosition;
+        }
+        if (pausePanel != null)
+        {
+            var ppComp = pausePanel.GetComponent<PausePanel>();
+            if (ppComp != null)
+            {
+                var pso0 = new SerializedObject(ppComp);
+                Button GetPB(string n) => pso0.FindProperty(n)?.objectReferenceValue as Button;
+                Button ClonePB(Button src)
+                {
+                    if (src == null) return null;
+                    var c = Object.Instantiate(src.gameObject, mainPage.transform);
+                    c.name = "Main_" + src.name;
+                    c.SetActive(true);
+                    var cso = new SerializedObject(c.GetComponent<Button>());
+                    var oc = cso.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
+                    if (oc != null && oc.isArray) oc.arraySize = 0;
+                    cso.ApplyModifiedPropertiesWithoutUndo();
+                    return c.GetComponent<Button>();
+                }
+                // 顺序必须与 ActivateMain 对应：0继续 1重新开始 2出招表 3返回标题
+                mainList.Add(ClonePB(GetPB("resumeButton")));
+                mainList.Add(ClonePB(GetPB("restartButton")));
+                mainList.Add(ClonePB(GetPB("moveListButton")));
+                mainList.Add(ClonePB(GetPB("quitButton")));
+            }
+        }
+        mainList.RemoveAll(x => x == null);
+        SetObjectArrayProp(so, "mainButtons", mainList.ToArray());
         so.FindProperty("trainPage").objectReferenceValue = trainPage;
         so.FindProperty("mainPage").objectReferenceValue = mainPage;
         mainPage.SetActive(false);
