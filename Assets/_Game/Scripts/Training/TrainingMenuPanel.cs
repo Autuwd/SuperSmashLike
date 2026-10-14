@@ -56,6 +56,7 @@ namespace SuperSmashLike.Training
         private float _nextNav;
         private int _tab;
         private TMP_Text[] _rowStatus;   // 每行右侧的"开/关"状态字
+        private SuperSmashLike.UI.MoveListUI _moveList;
 
         private Button[] ActiveButtons => _tab == 0 ? rowButtons : mainButtons;
 
@@ -205,18 +206,21 @@ namespace SuperSmashLike.Training
                     b.onClick.RemoveAllListeners();
                     b.onClick.AddListener(() => SelectTab(idx));
                 }
-            if (mainButtons != null)
-                for (int i = 0; i < mainButtons.Length; i++)
-                {
-                    var b = mainButtons[i]; if (b == null) continue;
-                    int idx = i;
-                    b.onClick.RemoveAllListeners();
-                    b.onClick.AddListener(() => ActivateMain(idx));
-                }
+            // 【注意】不再动 mainButtons 的 onClick —— 留给在 Inspector 手动连线（更可靠）
         }
+
+        // ===== 供 Inspector 里给主菜单按钮连线（public）=====
+        public void MenuContinue() { if (controller != null) controller.SetMenu(false); }
+        public void MenuRestart() => RestartGame();
+        public void MenuShowMoveList() => ShowMoveList();
+        public void MenuExitTraining() { if (controller != null) controller.ExitTraining(); }
 
         private void Update()
         {
+            // 出招表打开时：键盘交给出招表处理，菜单不抢键（避免 K 关错对象）
+            if (_moveList == null) _moveList = Object.FindObjectOfType<SuperSmashLike.UI.MoveListUI>(true);
+            if (_moveList != null && _moveList.gameObject.activeSelf) return;
+
             var gp = Gamepad.current;
 
             // ---- 切换标签页（Q/E 或 手柄 LB/RB）----
