@@ -67,6 +67,7 @@ namespace SuperSmashLike.Managers
         private bool _matchStarted;       // 防止重复开赛
 
         private GameState _prevState = GameState.Title;   // 记录上一个状态，判断是否离开了 Battle
+        private bool _trainingMode;
 
         // 委托缓存（订阅/退订对称的关键）
         private readonly Dictionary<FighterController, System.Action<float, FighterController>> _damagedHandlers = new();
@@ -117,6 +118,7 @@ namespace SuperSmashLike.Managers
         // 【做什么】开始比赛（启动流程协程）
         public void StartMatch()
         {
+            _trainingMode = GameManager.Instance != null && GameManager.Instance.CurrentGameState == GameState.Training;
             IsMatchActive = false;
             if (matchCoroutine != null) StopCoroutine(matchCoroutine);   // 防并行协程
             MatchTimeRemaining = settings.matchTimeSeconds;              // 双保险
@@ -152,6 +154,16 @@ namespace SuperSmashLike.Managers
         // 【流程】击杀扣命 → 若命数制且还有命则延迟重生
         public void OnPlayerOutOfBounds(FighterController fighter, BlastZone.Side side)
         {
+            if (_trainingMode)
+            {
+                if (SmashDebug.IsOn(DebugChannel.Match))
+                    SmashDebug.Log(DebugChannel.Match, $"[Training] 出界重置 {fighter.name} side={side}");
+
+                Transform spawn = GetRandomSpawnPoint();
+                fighter.ResetToSpawn(spawn.position, zeroDamage: true);
+                return;
+            }
+
             if (SmashDebug.IsOn(DebugChannel.Match))
                 SmashDebug.Log(DebugChannel.Match,
                     $"{fighter.name} 掉界 side={side} 状态={fighter.StateMachine.CurrentState} 命数={fighter.remainingStocks}");
@@ -186,19 +198,28 @@ namespace SuperSmashLike.Managers
                 Debug.LogWarning("[MatchManager] countdownUI 为空，倒计时不会显示");
 
             // ===== 阶段1：开局倒计时 =====
-            if (countdownUI != null)
-                yield return countdownUI.Play((int)countdownTime, 1f, fightHoldTime);
-            else
-                yield return new WaitForSeconds(countdownTime);   // 兜底
+            if (!_trainingMode)
+            {
+                if (countdownUI != null)
+                    yield return countdownUI.Play((int)countdownTime, 1f, fightHoldTime);
+                else
+                    yield return new WaitForSeconds(countdownTime);   // 兜底
+            }
 
             // ===== 阶段2：比赛进行 =====
             IsMatchActive = true;
 
             if (SmashDebug.IsOn(DebugChannel.Match))
-                SmashDebug.Log(DebugChannel.Match, "比赛开始");
+                SmashDebug.Log(DebugChannel.Match, _trainingMode ? "训练模式开始" : "比赛开始");
 
             while (IsMatchActive)
             {
+                if (_trainingMode)
+                {
+                    yield return null;
+                    continue;   // 训练模式：不递减时间、不判定结束
+                }
+
                 // 计时钳到 0（不显示负数时间）
                 MatchTimeRemaining = Mathf.Max(0f, MatchTimeRemaining - Time.deltaTime);
                 OnTimerUpdated?.Invoke(MatchTimeRemaining);
@@ -522,6 +543,13 @@ namespace SuperSmashLike.Managers
             return spawnPoints[Mathf.Abs(f.playerID) % spawnPoints.Length];
         }
 
+        // 【做什么】训练模式用：对外暴露某斗士的固定出生点坐标（复用 GetSpawnPointFor）
+        public Vector3 GetSpawnPositionFor(FighterController f)
+        {
+            if (f == null) return transform.position;
+            return GetSpawnPointFor(f).position;
+        }
+
         // 【做什么】把每个玩家的角色头像绑定到菱形 HUD（读 FighterData.portraitIcon）
         private void BindPortraits()
         {
@@ -571,6 +599,20 @@ namespace SuperSmashLike.Managers
         }
 
         // 【做什么】重开后清零：比分、命数、伤害显示全部归位
+        public void StopTrainingMatch()
+        {
+            if (matchCoroutine != null)
+            {
+                StopCoroutine(matchCoroutine);
+                matchCoroutine = null;
+            }
+            IsMatchActive = false;
+            _matchStarted = false;
+            _isMatchEnding = false;
+            _trainingMode = false;
+            if (countdownUI != null) countdownUI.Hide();
+        }
+
         public void ResetMatchData()
         {
             // 1. 停掉正在跑的比赛流程 —— 关键！否则旧 MatchFlow 协程还活着，对局会"继续"

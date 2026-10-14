@@ -147,7 +147,7 @@ namespace SuperSmashLike.UI
             bool showRule = state == GameState.RuleSelect;
             bool showResult = state == GameState.Result;
             bool showPause = state == GameState.Paused;
-            bool showHUD = state == GameState.Battle || state == GameState.Paused;
+            bool showHUD = state == GameState.Battle || state == GameState.Paused || state == GameState.Training;
 
             if (titlePanel)           titlePanel.SetActive(showTitle);
             if (characterSelectPanel) characterSelectPanel.SetActive(showSelect);

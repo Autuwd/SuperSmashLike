@@ -786,7 +786,7 @@ namespace SuperSmashLike.Core
         private bool CanDecide()
         {
             if (GameManager.Instance == null) return false;
-            if (GameManager.Instance.CurrentGameState != GameState.Battle) return false;
+            if (!GameManager.Instance.IsCombatState(true)) return false;   // Battle 或 Training
             if (MatchManager.Instance == null || !MatchManager.Instance.IsMatchActive) return false;
             if (me == null || foe == null) return false;
             return !me.IsRespawnLocked;
@@ -1021,6 +1021,27 @@ namespace SuperSmashLike.Core
             safeMaxX = cx + 20f;
             safeMinY = -10f;
             WarnOnce("未能从 BlastZone 解析台边边界，暂用出生点推算的保守范围（x±20 / y≥-10）");
+        }
+
+        public void SetAiFrozen(bool frozen)
+        {
+            aiFrozen = frozen;
+        }
+
+        public void SetAttackEnabled(bool enabled)
+        {
+            attackEnabled = enabled;
+        }
+
+        public void ForceIdle()
+        {
+            var fc = GetComponent<FighterController>();
+            if (fc != null && fc.StateMachine != null)
+            {
+                fc.StateMachine.TransitionTo(fc.IsGrounded ? FighterState.Idle : FighterState.Fall);
+            }
+            strikeReadyTime = 0f;
+            decisionTimer = 0f;
         }
 
         #endregion

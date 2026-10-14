@@ -134,11 +134,27 @@ namespace SuperSmashLike.Combat
         // 【注意】必须用 WaitForSecondsRealtime —— Time.timeScale = 0 时普通 WaitForSeconds 不会计时
         private System.Collections.IEnumerator HitstopRoutine()
         {
-            Time.timeScale = 0f;
             float duration = attackData.hitstopDuration * GameManager.Instance.gameSettings.hitstopScale;
+            if (duration <= 0f) yield break;
+
+            float restoreTimeScale = Time.timeScale;
+            Time.timeScale = 0f;
             yield return new WaitForSecondsRealtime(duration);
-            if (GameManager.Instance.CurrentGameState != GameState.Paused)  // 如果游戏被暂停了就不要恢复时间了
-                Time.timeScale = 1f;
+
+            if (GameManager.Instance == null)
+            {
+                Time.timeScale = restoreTimeScale;
+                yield break;
+            }
+
+            if (GameManager.Instance.CurrentGameState != GameState.Paused)
+            {
+                Time.timeScale = GameManager.Instance.BaseTimeScale;
+            }
+            else
+            {
+                Time.timeScale = restoreTimeScale;
+            }
         }
 
         #endregion

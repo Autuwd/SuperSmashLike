@@ -103,7 +103,7 @@ namespace SuperSmashLike.UI
             if (right) { Adjust(+1); Refresh(); }
 
             bool toggleAdv = Input.GetKeyDown(KeyCode.F)
-                          || (gp != null && gp.leftTrigger.wasPressedThisFrame);
+                          || (gp != null && (gp.leftTrigger.wasPressedThisFrame || gp.buttonNorth.wasPressedThisFrame));
             if (toggleAdv)
             {
                 _advancedOpen = !_advancedOpen;
@@ -213,7 +213,7 @@ namespace SuperSmashLike.UI
             if (difficultyDescText != null)
                 difficultyDescText.text = GameSettings.GetCpuDifficultyDesc(_difficulty);
             if (hintText != null)
-                hintText.text = "W/S 选行    A/D 调值    F 高级选项    J 开始比赛    K 返回";
+                hintText.text = "";   // 按键提示改由全局 KeyHintBar 统一显示
         }
 
         private static void SetText(TextMeshProUGUI[] arr, int i, string txt)

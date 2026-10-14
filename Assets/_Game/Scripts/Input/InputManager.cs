@@ -41,6 +41,7 @@ namespace SuperSmashLike.InputSystem
 
         private PlayerInput playerInput;          // 仅用于获取 actions 资产引用（组件已被禁用）
         private InputActionAsset runtimeActions;  // 运行时克隆的独立资产（InputUser 无法污染）
+        private InputBinding _defaultMask;        // 默认绑定掩码（按 playerID 分组）；训练"接管全部设备"后用于还原
         private InputActionMap gameplayMap;       // Gameplay 地图（启用中）
 
         // ---- Action 回调写入的输入状态（在 Update 中消费）----
@@ -97,9 +98,10 @@ namespace SuperSmashLike.InputSystem
                     int pid = fighterController != null ? fighterController.playerID : 0;
                     string kbGroup = pid == 0 ? "KeyboardP1" : pid == 1 ? "KeyboardP2" : "Gamepad";
                     bool ownsGamepad = (pid == 1);                     // 手柄固定给 P2
-                    runtimeActions.bindingMask = ownsGamepad
+                    _defaultMask = ownsGamepad
                         ? InputBinding.MaskByGroups(kbGroup, "Gamepad")
                         : InputBinding.MaskByGroup(kbGroup);
+                    runtimeActions.bindingMask = _defaultMask;
 
                     if (SmashDebug.IsOn(DebugChannel.Input))
                         SmashDebug.Log(DebugChannel.Input, $"输入分组隔离: playerID={pid} → {kbGroup}");
@@ -111,6 +113,63 @@ namespace SuperSmashLike.InputSystem
                     $"初始化 | PlayerInput: {(playerInput != null ? "已找到(已禁用)" : "缺失")} | " +
                     $"克隆资产: {(runtimeActions != null ? "OK" : "失败!")} | " +
                     $"FighterController: {(fighterController != null ? "已找到" : "缺失!")}");
+        }
+
+        // 【做什么】按 GameManager 里的"每玩家操作方式"设置本 InputManager 的绑定掩码
+        //   GameManager.Awake 保证在所有 Start 之前 → 这里读 Instance 一定就绪
+        //   单人（playerCount<=1）：P1 同时接受 键盘P1 + 键盘P2 + 手柄
+        private void Start()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            int pid = fighterController != null ? fighterController.playerID : 0;
+
+            if (gm.playerCount <= 1 && pid == 0)
+            {
+                SetOwnAllSchemes(true);   // 单人：两种操作方式都可以
+                return;
+            }
+
+            SetMaskByDevice(gm.GetDeviceForPlayer(pid));
+        }
+
+        // 【做什么】按操作方式（0=键盘P1区 1=键盘P2区 2=手柄）设掩码
+        public void SetMaskByDevice(int device)
+        {
+            if (runtimeActions == null) return;
+
+            _defaultMask = device == 2
+                ? InputBinding.MaskByGroup("Gamepad")
+                : (device == 1 ? InputBinding.MaskByGroup("KeyboardP2") : InputBinding.MaskByGroup("KeyboardP1"));
+            runtimeActions.bindingMask = _defaultMask;
+
+            if (gameplayMap != null) { gameplayMap.Disable(); gameplayMap.Enable(); }
+
+            if (SmashDebug.IsOn(DebugChannel.Input))
+                SmashDebug.Log(DebugChannel.Input, $"[InputManager] 设备掩码={device} playerID={fighterController?.playerID}");
+        }
+
+        // 【做什么】训练/单人模式：让本 InputManager 接管全部设备方案
+        //   （键盘 P1 + 键盘 P2 方向键/小键盘 + 手柄），保证训练时玩家用任何设备都能操作 P1
+        // 【注意】P2 在训练里是 CPU（其 InputManager 被禁用），故不会与 P1 抢输入
+        public void SetOwnAllSchemes(bool own)
+        {
+            if (runtimeActions == null) return;
+            runtimeActions.bindingMask = own
+                ? InputBinding.MaskByGroups("KeyboardP1", "KeyboardP2", "Gamepad")
+                : _defaultMask;
+
+            // 强制重新解析绑定：asset 级 mask 变更后需重开地图才会生效
+            if (gameplayMap != null)
+            {
+                gameplayMap.Disable();
+                gameplayMap.Enable();
+            }
+
+            if (SmashDebug.IsOn(DebugChannel.Input))
+                SmashDebug.Log(DebugChannel.Input,
+                    $"[InputManager] ownAll={own} playerID={(fighterController != null ? fighterController.playerID : -1)}");
         }
 
         // 【做什么】订阅全部 Action 回调并启用 Gameplay 地图
@@ -268,9 +327,9 @@ namespace SuperSmashLike.InputSystem
             // 【修复】只在 Battle 且非"重生锁定"时才消费游戏输入；
             // 暂停/标题/选人/结算一律清 latch 并早退（Update 不受 timeScale 影响）
             bool playable = GameManager.Instance != null
-                         && GameManager.Instance.CurrentGameState == GameState.Battle
-                         && MatchManager.Instance != null
-                         && MatchManager.Instance.IsMatchActive;   // 倒计时期间 false → 不能动
+                          && GameManager.Instance.IsCombatState(true)
+                          && MatchManager.Instance != null
+                          && MatchManager.Instance.IsMatchActive;   // 倒计时期间 false → 不能动
 
             if (!playable || fighterController.IsRespawnLocked)   // ← IsRespawnLocked 见问题2
             {

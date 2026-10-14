@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
+using SuperSmashLike.Managers;
+using SuperSmashLike.Stage;
 
 // ============================================================
 // GameManager — 全局游戏状态管理器（单例）
@@ -24,6 +26,7 @@ namespace SuperSmashLike.Core
         Battle,            // 战斗中（核心玩法进行中）
         Paused,            // 暂停（Time.timeScale = 0）
         Result,            // 结算画面（显示排名/统计数据）
+        Training,          // 训练模式
     }
 
     public class GameManager : MonoBehaviour
@@ -39,6 +42,28 @@ namespace SuperSmashLike.Core
         [Header("Debug")]
         public DebugSettings debugSettings;   // 调试开关配置资产（拖入 DS_Debug.asset）
         public bool skipToBattle;           // 调试用：勾选后跳过菜单直接进入战斗
+
+        [Header("Players / Devices")]
+        [Tooltip("人类玩家数量（1 = 单人，隐藏设备选择，默认键鼠+手柄皆可）")]
+        public int playerCount = 1;
+        [Tooltip("AI 数量")]
+        public int aiCount = 1;
+        [Tooltip("每个玩家的操作方式：0=键盘P1区  1=键盘P2区  2=手柄")]
+        public int[] playerDevice = { 0, 2, 0, 2 };
+
+        // 【做什么】取某玩家选定的操作方式（越界回退：P1=键盘P1区 / P2=手柄）
+        public int GetDeviceForPlayer(int pid)
+            => (pid >= 0 && pid < playerDevice.Length) ? playerDevice[pid] : (pid == 1 ? 2 : 0);
+
+        [Header("Time Scale")]
+        [Tooltip("基础时间缩放（非暂停时生效，用于训练慢动作）")]
+        public float baseTimeScale = 1f;
+
+        public float BaseTimeScale
+        {
+            get => baseTimeScale;
+            set => baseTimeScale = Mathf.Clamp(value, 0f, 10f);
+        }
 
         // 当前游戏阶段，其他模块通过这个属性来判断能做什么
         public GameState CurrentGameState { get; private set; }
@@ -93,9 +118,50 @@ namespace SuperSmashLike.Core
                 SmashDebug.Log(DebugChannel.Match, $"GameManager 状态 → {newState}");
         }
 
+        public bool IsCombatState(bool includeTraining = true)
+        {
+            var s = CurrentGameState;
+            return s == GameState.Battle || (includeTraining && s == GameState.Training);
+        }
+
+        public void ApplyTimeScale()
+        {
+            if (CurrentGameState == GameState.Paused)
+            {
+                Time.timeScale = 0f;
+                return;
+            }
+            Time.timeScale = BaseTimeScale;
+        }
+
         public void StartMatch()
         {
             SwitchState(GameState.Battle);
+        }
+
+        // 【做什么】是否请求走"训练流程"（标题→选人→选图→训练，跳过规则选择）
+        public bool trainingRequested { get; private set; }
+
+        // 【做什么】从标题进入训练流程：置标记 → 去选人（再选图 → 训练）
+        public void RequestTraining()
+        {
+            trainingRequested = true;
+            SwitchState(GameState.CharacterSelect);
+        }
+
+        public void CancelTrainingRequest() => trainingRequested = false;
+
+        public void StartTraining()
+        {
+            trainingRequested = false;
+            SwitchState(GameState.Training);
+            if (StageManager.Instance != null)
+                StageManager.Instance.LoadSelectedStage();
+            if (MatchManager.Instance != null)
+            {
+                MatchManager.Instance.ResetMatchData();
+                MatchManager.Instance.StartMatch();
+            }
         }
 
         public void EndMatch()

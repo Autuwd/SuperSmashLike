@@ -4,7 +4,6 @@ using SuperSmashLike.Managers;
 using SuperSmashLike.Stage;
 using System.Collections.Generic;
 using UnityEngine;
-using SuperSmashLike.Managers;
 
 // ============================================================
 // FighterController — 斗士角色主控制器（整个项目的核心类）
@@ -122,6 +121,10 @@ namespace SuperSmashLike.Core
         [Header("Tech")]
         public float techBounceSpeed = 6f;    // 受身成功小反弹速度
         public float techInvincibleTime = 0.5f;  // 受身无敌时长（秒）
+
+        [Header("Training/Debug")]
+        [Tooltip("调试无敌（训练用，独立于重生无敌计时，不随 Respawn 结束自动关闭）")]
+        public bool debugInvincible;
 
         [Header("投掷调参")]
         [Tooltip("投掷击飞缩放。投掷是高伤害 / 低击飞的交换：伤害给足，但不该把人打飞 —— 否则一次投掷等于一次击飞。1=退回与攻击同值")]
@@ -276,9 +279,9 @@ namespace SuperSmashLike.Core
         // 【做什么】每帧主循环：地面检测 → 特殊状态早退 → 计时器 → 重力 → 移动 → 动画 → 朝向
         private void Update()
         {
-            // ===== 0. 可玩性检测：非 Battle 状态或 Match 未激活 → 清输入缓冲 + 早退 =====
+            // ===== 0. 可玩性检测：非战斗状态或 Match 未激活 → 清输入缓冲 + 早退 =====
             bool playable = GameManager.Instance != null
-                         && GameManager.Instance.CurrentGameState == GameState.Battle
+                         && GameManager.Instance.IsCombatState(true)   // Battle 或 Training
                          && MatchManager.Instance != null
                          && MatchManager.Instance.IsMatchActive;
 
@@ -466,7 +469,7 @@ namespace SuperSmashLike.Core
             
             //角色是否可操作
             bool playable = GameManager.Instance != null
-                         && GameManager.Instance.CurrentGameState == GameState.Battle
+                         && GameManager.Instance.IsCombatState(true)   // Battle 或 Training
                          && MatchManager.Instance != null
                          && MatchManager.Instance.IsMatchActive;
 
@@ -1241,6 +1244,7 @@ namespace SuperSmashLike.Core
         {
             if (isInvincible || StateMachine.CurrentState == FighterState.Dead)
                 return;
+            if (debugInvincible) return;   // 训练/调试无敌
 
             // 记录最后攻击者（环境攻击为 null 时保持原值？但环境不通过此入口）
             if (attacker != null)
@@ -1369,6 +1373,13 @@ namespace SuperSmashLike.Core
         {
             if (grabTarget == null) return;
             FighterController victim = grabTarget;
+
+            // 投技前：受害者若处于无敌（含 debugInvincible）→ 不生效，直接脱离抓取并返回
+            if (victim.isInvincible || victim.StateMachine.CurrentState == FighterState.Dead || victim.debugInvincible)
+            {
+                ReleaseGrab();
+                return;
+            }
 
             AttackData data = dir switch
             {
@@ -1516,31 +1527,42 @@ namespace SuperSmashLike.Core
         public void ResetForMatch(Vector3 position)
         {
             transform.position = position;
-            if (rb != null) rb.velocity = Vector2.zero;
+            if (rb != null)
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+            }
             velocity = Vector2.zero;
             knockbackVelocity = Vector2.zero;
             CurrentKnockbackSpeed = 0f;
             isInKnockback = false;
             CurrentDamage = 0f;
-            remainingStocks = GameManager.Instance.gameSettings.stockCount;   // 命数复位 ← 关键
-            currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;
+            lastAttackerPlayerId = -1;
+            if (GameManager.Instance != null && GameManager.Instance.gameSettings != null)
+                remainingStocks = GameManager.Instance.gameSettings.stockCount;   // 命数复位 ← 关键
+            currentShieldHP = GameManager.Instance != null && GameManager.Instance.gameSettings != null
+                ? GameManager.Instance.gameSettings.shieldMaxHP
+                : 50f;
             isShielding = false;
             isInvincible = false;        // 不给重生无敌
             respawnTimer = 0f;
-            remainingJumps = fighterData.jumpCount;
+            respawnLockTimer = 0f;
+            attackFallbackTimer = 0f;
+            comboStep = 0;
+            remainingJumps = fighterData != null ? fighterData.jumpCount : 2;
             inputBuffer.Clear();
+            ReleaseGrab();
             StateMachine.Initialize(FighterState.Idle);
 
             // 【修复】同步 Animator —— 否则它会一直播上一局的 Run/Fall
-            // （Update 在非战斗状态不跑，没人把状态推给 Animator）
             if (animator != null)
             {
                 animator.SetInteger("State", (int)FighterState.Idle);
+                animator.SetInteger("AttackType", 0);
                 animator.SetInteger("ComboStep", 0);
             }
             lastAnimState = FighterState.Idle;
 
-            // 恢复可见（防上一帧闪烁把 renderer.enabled 留在 false）
             if (_visualRenderers != null)
                 foreach (var r in _visualRenderers) if (r != null) r.enabled = true;
 
@@ -1548,6 +1570,83 @@ namespace SuperSmashLike.Core
             if (mainCollider != null) mainCollider.enabled = true;
             if (hurtbox != null) hurtbox.gameObject.SetActive(true);
             if (shieldVisual != null) shieldVisual.SetActive(false);
+
+            OnDamaged?.Invoke(CurrentDamage, null);
+        }
+
+        // 【做什么】训练/调试用重置：回到指定出生点，清伤害/速度/状态
+        public void ResetToSpawn(Vector3 spawnPos, bool zeroDamage = true)
+        {
+            transform.position = spawnPos;
+            if (visual != null)
+            {
+                Vector3 s = visual.localScale;
+                s.x = Mathf.Abs(s.x) * (isFacingRight ? 1f : -1f);
+                visual.localScale = s;
+            }
+
+            if (rb != null)
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+            }
+
+            velocity = Vector2.zero;
+            knockbackVelocity = Vector2.zero;
+            CurrentKnockbackSpeed = 0f;
+            isInKnockback = false;
+
+            if (zeroDamage)
+            {
+                CurrentDamage = 0f;
+                lastAttackerPlayerId = -1;
+            }
+
+            isCharging = false;
+            chargeTimer = 0f;
+            chargeBaseData = null;
+            isAttacking = false;
+            attackFallbackTimer = 0f;
+            comboStep = 0;
+            hitstunTimer = 0f;
+            stunTimer = 0f;
+
+            ReleaseGrab();
+
+            respawnTimer = 0f;
+            respawnLockTimer = 0f;
+            isInvincible = false;
+
+            isShielding = false;
+            currentShieldHP = GameManager.Instance != null && GameManager.Instance.gameSettings != null
+                ? GameManager.Instance.gameSettings.shieldMaxHP
+                : 50f;
+            if (shieldVisual != null) shieldVisual.SetActive(false);
+
+            remainingJumps = fighterData != null ? fighterData.jumpCount : 2;
+            inputBuffer.Clear();
+
+            if (StateMachine != null)
+            {
+                StateMachine.TransitionTo(IsGrounded ? FighterState.Idle : FighterState.Fall);
+            }
+
+            if (animator != null)
+            {
+                animator.SetInteger("State", (int)FighterState.Idle);
+                animator.SetInteger("AttackType", 0);
+                animator.SetInteger("ComboStep", 0);
+            }
+            lastAnimState = IsGrounded ? FighterState.Idle : FighterState.Fall;
+
+            if (_visualRenderers != null)
+                foreach (var r in _visualRenderers) if (r != null) r.enabled = true;
+
+            if (visual != null) visual.gameObject.SetActive(true);
+            if (mainCollider != null) mainCollider.enabled = true;
+            if (hurtbox != null) hurtbox.gameObject.SetActive(true);
+
+            OnDamaged?.Invoke(CurrentDamage, null);
         }
 
         // 【做什么】无敌期间以 ~10Hz 闪烁；非无敌时确保可见

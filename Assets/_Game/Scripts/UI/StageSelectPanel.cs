@@ -144,7 +144,7 @@ namespace SuperSmashLike.UI
             if (infoText != null)
                 infoText.text = $"尺寸：{SizeLabel(sd)}    出界边界：{sd.blastZoneWidth:F0} × {sd.blastZoneHeight:F0}";
             if (hintText != null)
-                hintText.text = $"{_index + 1} / {_stages.Count}     ←→ 切换    J 确认    K 返回";
+                hintText.text = $"{_index + 1} / {_stages.Count}";   // 按键提示改由全局 KeyHintBar 显示
         }
 
         private string SizeLabel(StageData sd)
@@ -165,7 +165,11 @@ namespace SuperSmashLike.UI
             if (gs == null || _stages.Count == 0) return;
 
             gs.SetSelectedStage(_stages[_index]);   // 锁定
-            GameManager.Instance.SwitchState(GameState.RuleSelect);
+            // 训练流程：跳过规则选择，直接进训练
+            if (GameManager.Instance.trainingRequested)
+                GameManager.Instance.StartTraining();
+            else
+                GameManager.Instance.SwitchState(GameState.RuleSelect);
         }
 
         private void Back()

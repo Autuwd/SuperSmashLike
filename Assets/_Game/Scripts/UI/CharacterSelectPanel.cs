@@ -87,6 +87,19 @@ namespace SuperSmashLike.UI
 
         private void Update()
         {
+            // 【统一返回】K / 小键盘2 / Esc / 手柄B → 返回主页（不受各玩家确认状态影响）
+            var gp = Gamepad.current;
+            bool back = Input.GetKeyDown(KeyCode.K) || Input.GetKeyDown(KeyCode.Escape)
+                     || Input.GetKeyDown(KeyCode.Keypad2)
+                     || (gp != null && gp.buttonEast.wasPressedThisFrame);
+            if (back && !IsMoveListOpen)
+            {
+                CloseMoveList();
+                if (GameManager.Instance != null)
+                    GameManager.Instance.SwitchState(GameState.Title);
+                return;
+            }
+
             // 按键与战斗键一一对应（见 Controls.inputactions）
             HandlePlayerInput(0);  // P1: WASD 移动 + J=攻击(确认) K=必杀(取消) L=防御(随机) Space=跳跃(出招表)
             HandlePlayerInput(1);  // P2: ↑←↓→ 移动 + 小键盘1=攻击(确认) 2=必杀(取消) 3=防御(随机) 0=跳跃(出招表)
