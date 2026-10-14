@@ -170,12 +170,14 @@ namespace SuperSmashLike.Training
         private void RestartGame()
         {
             if (controller != null) controller.ExitTraining();
-            if (GameManager.Instance != null) GameManager.Instance.SwitchState(GameState.CharacterSelect);
+            // 重新开始 → 走"训练流程"（选人→选图→训练），而不是回普通流程
+            if (GameManager.Instance != null) GameManager.Instance.RequestTraining();
         }
 
         private void ShowMoveList()
         {
-            var ml = Object.FindObjectOfType<SuperSmashLike.UI.MoveListUI>();
+            // 【注意】出招表面板平时是关闭(未激活)的，必须 includeInactive=true 才找得到
+            var ml = Object.FindObjectOfType<SuperSmashLike.UI.MoveListUI>(true);
             if (ml == null) return;
             var gs = GameManager.Instance != null ? GameManager.Instance.gameSettings : null;
             var fd = gs != null ? gs.GetSelection(0) : null;
