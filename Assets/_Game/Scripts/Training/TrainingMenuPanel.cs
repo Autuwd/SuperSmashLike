@@ -154,17 +154,19 @@ namespace SuperSmashLike.Training
             });
         }
 
-        // 【做什么】主菜单动作：按按钮名字分发（不依赖索引顺序）
+        // 【做什么】主菜单动作：按"按钮上显示的文字"分发（与玩家所见一致，不受物体名/顺序影响）
         private void ActivateMain(int i)
         {
             var act = mainButtons;
             if (act == null || i < 0 || i >= act.Length || act[i] == null) return;
 
-            string n = act[i].gameObject.name;
-            if (n.Contains("MoveList")) ShowMoveList();                                   // 出招表
-            else if (n.Contains("Restart")) RestartGame();                                // 重新开始
-            else if (n.Contains("Quit")) { if (controller != null) controller.ExitTraining(); }   // 返回标题
-            else { if (controller != null) controller.SetMenu(false); }                    // 继续
+            var t = act[i].GetComponentInChildren<TMP_Text>(true);
+            string label = t != null ? t.text : "";
+
+            if (label.Contains("出招表")) ShowMoveList();
+            else if (label.Contains("重新开始")) RestartGame();
+            else if (label.Contains("标题") || label.Contains("退出")) { if (controller != null) controller.ExitTraining(); }
+            else { if (controller != null) controller.SetMenu(false); }   // 继续
         }
 
         private void RestartGame()
