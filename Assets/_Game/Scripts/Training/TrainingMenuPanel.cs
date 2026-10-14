@@ -342,12 +342,12 @@ namespace SuperSmashLike.Training
         {
             if (rowLabels == null) return;
             SetLabel(0, "继续");
-            SetLabel(1, "CPU（木桩）");
-            SetLabel(2, "无敌");
-            SetLabel(3, "慢动作");
-            SetLabel(4, "判定框");
-            SetLabel(5, "帧数据面板");
-            SetLabel(6, "HUD");
+            SetLabel(1, $"CPU（木桩）   {(controller != null && !controller.CpuEnabled ? "开" : "关")}");
+            SetLabel(2, $"无敌   {(controller != null && controller.Invincible ? "开" : "关")}");
+            SetLabel(3, $"慢动作   {(controller != null && controller.SlowMoActive ? "开" : "关")}");
+            SetLabel(4, $"判定框   {(boxOverlay != null && boxOverlay.showBoxes ? "开" : "关")}");
+            SetLabel(5, $"帧数据面板   {(FrameDataVisible() ? "开" : "关")}");
+            SetLabel(6, $"HUD   {(controller != null && controller.HudVisible ? "开" : "关")}");
             SetLabel(7, "重置位置");
             SetLabel(8, "退出训练");
 
@@ -373,9 +373,6 @@ namespace SuperSmashLike.Training
             cb.selectedColor = on ? Color.Lerp(onColor, selectionColor, 0.5f) : selectionColor;
             cb.highlightedColor = cb.selectedColor;
             b.colors = cb;
-
-            var st = StatusText(i);
-            if (st != null) st.text = on ? "开" : "关";
         }
 
         private void SetLabel(int i, string s)

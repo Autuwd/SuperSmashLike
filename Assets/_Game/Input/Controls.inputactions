@@ -416,7 +416,7 @@
                     "path": "<Keyboard>/escape",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";KeyboardP1;KeyboardP2",
+                    "groups": ";KeyboardP1",
                     "action": "Pause",
                     "isComposite": false,
                     "isPartOfComposite": false
