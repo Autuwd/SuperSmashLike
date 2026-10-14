@@ -54,15 +54,22 @@ namespace SuperSmashLike.UI
 
         private void HandleEsc()
         {
+            // 主判据：旧版 Input 读 Esc（本项目 activeInputHandler=Both，旧的可用）；
+            // 备用：新 Input System 的 escapeKey 边缘检测。二者任一触发即可。
+            bool legacyEsc = false;
+            try { legacyEsc = Input.GetKeyDown(KeyCode.Escape); } catch { /* 纯 InputSystem 工程时忽略 */ }
+
+            bool newEsc = false, pauseKey = false;
             var kb = Keyboard.current;
-            if (kb == null) return;
+            if (kb != null)
+            {
+                bool down = kb.escapeKey.isPressed;
+                newEsc = down && !_escWasDown;
+                _escWasDown = down;
+                pauseKey = kb.pKey.wasPressedThisFrame;   // 备用暂停键 P（Esc 在本机被吞时的替代）
+            }
 
-            // 边缘检测（不依赖 wasPressedThisFrame）
-            bool down = kb.escapeKey.isPressed;
-            bool pressed = down && !_escWasDown;
-            _escWasDown = down;
-            if (!pressed) return;
-
+            if (!legacyEsc && !newEsc && !pauseKey) return;
             if (Time.unscaledTime - s_lastEscTime < 0.2f) return;
             s_lastEscTime = Time.unscaledTime;
 
