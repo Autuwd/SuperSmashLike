@@ -376,7 +376,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 11059302}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 412854429}
+        m_TargetAssemblyTypeName: SuperSmashLike.Training.TrainingMenuPanel, Assembly-CSharp
+        m_MethodName: MenuContinue
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &11510528
 GameObject:
   m_ObjectHideFlags: 0
@@ -2875,7 +2887,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &230387243
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2888,9 +2900,9 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 1096993100}
   - {fileID: 11059301}
   - {fileID: 332388566}
-  - {fileID: 1096993100}
   - {fileID: 300577838}
   m_Father: {fileID: 412854432}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -3615,7 +3627,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 300577836}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 412854429}
+        m_TargetAssemblyTypeName: SuperSmashLike.Training.TrainingMenuPanel, Assembly-CSharp
+        m_MethodName: MenuExitTraining
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &300577836
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4523,7 +4547,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 332388567}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 412854429}
+        m_TargetAssemblyTypeName: SuperSmashLike.Training.TrainingMenuPanel, Assembly-CSharp
+        m_MethodName: MenuRestart
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &333124612
 GameObject:
   m_ObjectHideFlags: 0
@@ -5701,7 +5737,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &412854429
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15461,7 +15497,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1096993101}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 412854429}
+        m_TargetAssemblyTypeName: SuperSmashLike.Training.TrainingMenuPanel, Assembly-CSharp
+        m_MethodName: MenuShowMoveList
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &1105484145
 GameObject:
   m_ObjectHideFlags: 0

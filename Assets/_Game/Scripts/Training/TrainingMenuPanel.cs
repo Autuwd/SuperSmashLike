@@ -182,6 +182,8 @@ namespace SuperSmashLike.Training
             // 【注意】出招表面板平时是关闭(未激活)的，必须 includeInactive=true 才找得到
             var ml = Object.FindObjectOfType<SuperSmashLike.UI.MoveListUI>(true);
             if (ml == null) return;
+
+            ml.transform.SetAsLastSibling();   // 置顶：避免被全屏的训练菜单挡住
             var gs = GameManager.Instance != null ? GameManager.Instance.gameSettings : null;
             var fd = gs != null ? gs.GetSelection(0) : null;
             ml.ShowFor(fd, 0, true);
