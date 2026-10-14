@@ -42,7 +42,7 @@ namespace SuperSmashLike.Training
             if (comboText != null)
                 comboText.text = "Combo: 0";
             if (hintText != null)
-                hintText.text = "";   // 按键提示改由全局 KeyHintBar 统一显示
+                hintText.text = "Esc 菜单   R 重置   T CPU   I 无敌   H HUD（帧数据/慢动作见菜单）";
         }
 
         private void OnDestroy()

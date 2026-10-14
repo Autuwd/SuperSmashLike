@@ -30,6 +30,8 @@ namespace SuperSmashLike.Training
         private bool _hudVisible = true;
         private bool _inputSoloApplied;
         private bool _menuOpen;
+        private FrameMeter[] _frameMeters;   // 场景中的帧数表（仅训练显示）
+        [System.NonSerialized] public bool FrameDataOn = true;   // 帧数表/帧数据 统一开关
 
         // ---- 菜单 / 外部读取的状态 ----
         public bool MenuOpen => _menuOpen;
@@ -59,6 +61,16 @@ namespace SuperSmashLike.Training
             bool inTraining = GameManager.Instance.CurrentGameState == GameState.Training;
             if (trainingHudRoot != null)
                 trainingHudRoot.SetActive(inTraining && _hudVisible);
+
+            // 帧数表：仅训练模式显示，且受"帧数据"统一开关控制
+            if (_frameMeters == null) _frameMeters = FindObjectsOfType<FrameMeter>(true);
+            bool showFrame = inTraining && FrameDataOn;
+            for (int i = 0; i < _frameMeters.Length; i++)
+            {
+                var fm = _frameMeters[i];
+                if (fm == null) continue;
+                if (fm.gameObject.activeSelf != showFrame) fm.gameObject.SetActive(showFrame);
+            }
 
             // 训练时让玩家接管全部设备（手柄/方向键/小键盘/键盘都操作 P1）；P2 是 CPU 不抢输入
             if (inTraining != _inputSoloApplied)
@@ -97,9 +109,8 @@ namespace SuperSmashLike.Training
             if (kb.iKey.wasPressedThisFrame)
                 Invincible = !Invincible;
 
-            // LeftShift：慢动作（按住）
-            SetSlowMo(kb.leftShiftKey.isPressed);
-
+            // 慢动作：只由菜单开关控制（不再用 Shift 热键，避免与开关状态冲突）
+            // 帧数表开关（菜单"帧数据"行会改它）
             // H：HUD 开关
             if (kb.hKey.wasPressedThisFrame)
                 SetHudVisible(!_hudVisible);
@@ -153,6 +164,9 @@ namespace SuperSmashLike.Training
         {
             if (GameManager.Instance == null) return;
             SetMenu(false);
+            // 恢复 CPU（避免训练时把 P2 冻成木桩后影响到后续正常对战）
+            _cpuEnabled = true;
+            ToggleCpu(true);
             GameManager.Instance.BaseTimeScale = 1f;
             Time.timeScale = 1f;
             GameManager.Instance.ApplyTimeScale();
@@ -167,6 +181,7 @@ namespace SuperSmashLike.Training
         public void SetMenu(bool open)
         {
             _menuOpen = open;
+            SuperSmashLike.UI.KeyHintBar.ForceShow = open;   // 菜单打开时显示底部按键提示
             if (menuPanel != null) menuPanel.SetActive(open);
 
             // 菜单打开时禁用 P1 输入，防止菜单按键被战斗输入一起消费

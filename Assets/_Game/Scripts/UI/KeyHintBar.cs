@@ -25,12 +25,19 @@ namespace SuperSmashLike.UI
 
         private bool _usingGamepad;
 
+        // 【做什么】外部强制显示（如训练菜单打开时，需要底部按键提示）
+        public static bool ForceShow;
+
+        private static float s_lastEscTime = -10f;
+
         private void Update()
         {
+            HandleEsc();
             DetectDevice();
 
             var s = GameManager.Instance != null ? GameManager.Instance.CurrentGameState : GameState.Boot;
-            bool show = s != GameState.Battle && s != GameState.BattleLoading && s != GameState.Result && s != GameState.Training;
+            bool show = ForceShow
+                     || (s != GameState.Battle && s != GameState.BattleLoading && s != GameState.Result && s != GameState.Training);
 
             // 游戏进行中：连面板一起隐藏，不挡视野
             if (background != null) background.enabled = show;
@@ -40,6 +47,32 @@ namespace SuperSmashLike.UI
             hintText.color = normalColor;
             hintText.text = BuildHint();
         }
+
+        // 【做什么】Esc 兜底：普通对战打开/关闭暂停菜单
+        //   挂在常驻 Canvas 上（不依赖 GameManager 的 Update），0.2s 去重
+        private bool _escWasDown;
+
+        private void HandleEsc()
+        {
+            var kb = Keyboard.current;
+            if (kb == null) return;
+
+            // 边缘检测（不依赖 wasPressedThisFrame）
+            bool down = kb.escapeKey.isPressed;
+            bool pressed = down && !_escWasDown;
+            _escWasDown = down;
+            if (!pressed) return;
+
+            if (Time.unscaledTime - s_lastEscTime < 0.2f) return;
+            s_lastEscTime = Time.unscaledTime;
+
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+            if (gm.CurrentGameState == GameState.Battle) gm.PauseGame();
+            else if (gm.CurrentGameState == GameState.Paused) gm.ResumeGame();
+        }
+
+        private static bool _loggedNoKb;
 
         // 【做什么】按最近的输入设备切换 键鼠 / 手柄 两套提示
         private void DetectDevice()
@@ -93,8 +126,8 @@ namespace SuperSmashLike.UI
 
                 case GameState.Training:
                     return _usingGamepad
-                        ? "Start / 手柄B 打开菜单       菜单内 A 确认       B 返回"
-                        : "Esc 打开菜单       R 重置       T CPU       I 无敌       Shift 慢动作       H HUD";
+                        ? "LB/RB 切换页      十字键/摇杆 选择      A 确认      B 关闭"
+                        : "Q/E 切换页      ↑↓ 选择      J/小键盘1 确认      K/小键盘2 关闭";
 
                 case GameState.Battle:
                 case GameState.BattleLoading:

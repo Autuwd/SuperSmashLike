@@ -52,6 +52,13 @@ namespace SuperSmashLike.UI
 
         private void Start()
         {
+            // 兜底：pausePanel 引用若丢失，从 Canvas 子树里找 PausePanel 组件
+            if (pausePanel == null)
+            {
+                var pp = GetComponentInChildren<PausePanel>(true);
+                if (pp != null) pausePanel = pp.gameObject;
+            }
+
             Subscribe();
             SetAllActive(false);
 

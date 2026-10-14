@@ -270,14 +270,19 @@ public static class TrainingSceneWizard
         var menuRoot = new GameObject("TrainingMenuRoot", typeof(RectTransform), typeof(Image));
         menuRoot.transform.SetParent(canvas.transform, false);
         var rect = menuRoot.GetComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(620f, 600f);
-        rect.anchoredPosition = Vector2.zero;
-        menuRoot.GetComponent<Image>().color = new Color(0.75f, 0.75f, 0.75f, 1f);   // 浅灰不透明
+        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+        menuRoot.GetComponent<Image>().color = new Color(0.75f, 0.75f, 0.75f, 1f);   // 浅灰不透明（黑字可读）
 
-        var title = CreateTmpText("Title", menuRoot.transform, font, new Vector2(0.5f, 0.95f), new Vector2(560f, 50f), TextAlignmentOptions.Center, "训练菜单");
+        var title = CreateTmpText("Title", menuRoot.transform, font, new Vector2(0.5f, 0.90f), new Vector2(560f, 50f), TextAlignmentOptions.Center, "菜单");
         title.fontSize = 34;
+
+        // 训练页容器
+        var trainPage = new GameObject("TrainPage", typeof(RectTransform));
+        trainPage.transform.SetParent(menuRoot.transform, false);
+        var trprt = trainPage.GetComponent<RectTransform>();
+        trprt.anchorMin = Vector2.zero; trprt.anchorMax = Vector2.one;
+        trprt.offsetMin = Vector2.zero; trprt.offsetMax = Vector2.zero;
 
         // 行模板：克隆暂停菜单的按钮（沿用其外观/字体），比自建更像"原菜单"
         Button template = null;
@@ -295,7 +300,7 @@ public static class TrainingSceneWizard
             GameObject rowGo;
             if (template != null)
             {
-                rowGo = Object.Instantiate(template.gameObject, menuRoot.transform);
+                rowGo = Object.Instantiate(template.gameObject, trainPage.transform);
                 rowGo.name = $"Row{i}";
                 var so0 = new SerializedObject(rowGo.GetComponent<Button>());
                 var oc = so0.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
@@ -305,7 +310,7 @@ public static class TrainingSceneWizard
             else
             {
                 rowGo = new GameObject($"Row{i}", typeof(RectTransform), typeof(Image), typeof(Button));
-                rowGo.transform.SetParent(menuRoot.transform, false);
+                rowGo.transform.SetParent(trainPage.transform, false);
                 var fi = rowGo.GetComponent<Image>();
                 fi.color = new Color(1f, 1f, 1f, 0.12f);
                 rowGo.GetComponent<Button>().targetGraphic = fi;
@@ -336,6 +341,60 @@ public static class TrainingSceneWizard
         so.FindProperty("controller").objectReferenceValue = tmc;
         so.FindProperty("boxOverlay").objectReferenceValue = boxOverlay;
         so.FindProperty("framePanel").objectReferenceValue = framePanel;
+
+        // 横向标签：训练 / 主菜单
+        var tabTitle = CreateTmpText("TabTitle", menuRoot.transform, font, new Vector2(0.5f, 0.82f), new Vector2(400f, 40f), TextAlignmentOptions.Center, "训练");
+        var tb0 = MakeButton(menuRoot.transform, template, font, "TabBtn0", "训练", new Vector2(0.5f, 0.95f), new Vector2(150f, 44f));
+        tb0.GetComponent<RectTransform>().anchoredPosition = new Vector2(-85f, 0f);
+        var tb1 = MakeButton(menuRoot.transform, template, font, "TabBtn1", "主菜单", new Vector2(0.5f, 0.95f), new Vector2(150f, 44f));
+        tb1.GetComponent<RectTransform>().anchoredPosition = new Vector2(85f, 0f);
+        SetObjectArrayProp(so, "tabButtons", new Button[] { tb0, tb1 });
+        so.FindProperty("tabTitle").objectReferenceValue = tabTitle;
+
+        var mainPage = new GameObject("MainPage", typeof(RectTransform));
+        mainPage.transform.SetParent(menuRoot.transform, false);
+        var mprt = mainPage.GetComponent<RectTransform>();
+        mprt.anchorMin = Vector2.zero; mprt.anchorMax = Vector2.one;
+        mprt.offsetMin = Vector2.zero; mprt.offsetMax = Vector2.zero;
+
+        // 主菜单页 = 直接克隆暂停菜单的按钮（连同位置尺寸）→ 两个菜单的"主菜单"完全一致
+        var mainList = new System.Collections.Generic.List<Button>(4);
+        if (pausePanel is RectTransform prt0)
+        {
+            mprt.anchorMin = prt0.anchorMin; mprt.anchorMax = prt0.anchorMax;
+            mprt.pivot = prt0.pivot; mprt.sizeDelta = prt0.sizeDelta; mprt.anchoredPosition = prt0.anchoredPosition;
+        }
+        if (pausePanel != null)
+        {
+            var ppComp = pausePanel.GetComponent<PausePanel>();
+            if (ppComp != null)
+            {
+                var pso0 = new SerializedObject(ppComp);
+                Button GetPB(string n) => pso0.FindProperty(n)?.objectReferenceValue as Button;
+                Button ClonePB(Button src)
+                {
+                    if (src == null) return null;
+                    var c = Object.Instantiate(src.gameObject, mainPage.transform);
+                    c.name = "Main_" + src.name;
+                    c.SetActive(true);
+                    var cso = new SerializedObject(c.GetComponent<Button>());
+                    var oc = cso.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
+                    if (oc != null && oc.isArray) oc.arraySize = 0;
+                    cso.ApplyModifiedPropertiesWithoutUndo();
+                    return c.GetComponent<Button>();
+                }
+                // 顺序必须与 ActivateMain 对应：0继续 1重新开始 2出招表 3返回标题
+                mainList.Add(ClonePB(GetPB("resumeButton")));
+                mainList.Add(ClonePB(GetPB("restartButton")));
+                mainList.Add(ClonePB(GetPB("moveListButton")));
+                mainList.Add(ClonePB(GetPB("quitButton")));
+            }
+        }
+        mainList.RemoveAll(x => x == null);
+        SetObjectArrayProp(so, "mainButtons", mainList.ToArray());
+        so.FindProperty("trainPage").objectReferenceValue = trainPage;
+        so.FindProperty("mainPage").objectReferenceValue = mainPage;
+        mainPage.SetActive(false);
         var ab = so.FindProperty("rowButtons"); ab.arraySize = ROWS;
         for (int i = 0; i < ROWS; i++) ab.GetArrayElementAtIndex(i).objectReferenceValue = buttons[i];
         var al = so.FindProperty("rowLabels"); al.arraySize = ROWS;
@@ -349,6 +408,9 @@ public static class TrainingSceneWizard
         EditorUtility.SetDirty(tmc);
 
         menuRoot.SetActive(false);
+        // 字体统一黑色（与主页/暂停菜单一致）
+        foreach (var t in menuRoot.GetComponentsInChildren<TextMeshProUGUI>(true))
+            t.color = Color.black;
         Debug.Log($"[TrainingSceneWizard] TrainingMenuRoot: 已创建（{ROWS} 行，模板={(template != null ? "暂停菜单按钮" : "自建")}）");
     }
 

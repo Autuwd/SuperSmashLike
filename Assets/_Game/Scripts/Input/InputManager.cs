@@ -157,7 +157,7 @@ namespace SuperSmashLike.InputSystem
         {
             if (runtimeActions == null) return;
             runtimeActions.bindingMask = own
-                ? InputBinding.MaskByGroups("KeyboardP1", "KeyboardP2", "Gamepad")
+                ? InputBinding.MaskByGroups("KeyboardP1", "Gamepad")   // 避开 Escape 同时属 P1/P2 两组的重复解析
                 : _defaultMask;
 
             // 强制重新解析绑定：asset 级 mask 变更后需重开地图才会生效

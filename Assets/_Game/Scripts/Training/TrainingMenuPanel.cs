@@ -32,6 +32,13 @@ namespace SuperSmashLike.Training
         public TrainingBoxOverlay boxOverlay;
         public TrainingFrameDataPanel framePanel;
 
+        [Header("标签页（横向）")]
+        public GameObject trainPage;      // 训练页（现有 9 行）
+        public GameObject mainPage;       // 主菜单页
+        public Button[] tabButtons;       // 顶部标签按钮
+        public TMP_Text tabTitle;         // 当前页名
+        public Button[] mainButtons;      // 主菜单页按钮（继续 / 退出训练）
+
         [Header("Rows（按顺序）0继续 1CPU 2无敌 3慢动作 4判定框 5帧数据 6HUD 7重置 8退出")]
         public Button[] rowButtons = new Button[9];
         public TextMeshProUGUI[] rowLabels = new TextMeshProUGUI[9];
@@ -47,6 +54,10 @@ namespace SuperSmashLike.Training
 
         private int _index;
         private float _nextNav;
+        private int _tab;
+        private TMP_Text[] _rowStatus;   // 每行右侧的"开/关"状态字
+
+        private Button[] ActiveButtons => _tab == 0 ? rowButtons : mainButtons;
 
         #endregion
 
@@ -55,29 +66,169 @@ namespace SuperSmashLike.Training
         private void OnEnable()
         {
             _index = 0;
+            // 引用兜底（重排布局后组件引用可能丢失 → 开关点了没反应）
+            if (controller == null) controller = Object.FindObjectOfType<TrainingModeController>(true);
+            if (boxOverlay == null) boxOverlay = Object.FindObjectOfType<TrainingBoxOverlay>(true);
+            if (framePanel == null) framePanel = Object.FindObjectOfType<TrainingFrameDataPanel>(true);
+
+            OrderMainButtons();   // 主菜单按钮按视觉位置(上→下)排序，保证循环顺序与所见一致
+
             ApplyRowColors();
             ApplyRowClicks();
+            EnsureRowStatus();
             Refresh();
-            SelectRow(0);
+            SelectTab(0);
+        }
+
+        // 【做什么】给每个开关行右侧创建一个"开/关"状态字（运行时创建，不改场景布局）
+        private void EnsureRowStatus()
+        {
+            if (rowButtons == null) return;
+            if (_rowStatus != null && _rowStatus.Length == rowButtons.Length) return;
+
+            _rowStatus = new TMP_Text[rowButtons.Length];
+            for (int i = 0; i < rowButtons.Length; i++)
+            {
+                var b = rowButtons[i];
+                if (b == null) continue;
+
+                var go = new GameObject("RowStatus", typeof(RectTransform));
+                go.transform.SetParent(b.transform, false);
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchorMin = rt.anchorMax = new Vector2(1f, 0.5f);   // 行右侧
+                rt.pivot = new Vector2(1f, 0.5f);
+                rt.anchoredPosition = new Vector2(-24f, 0f);
+                rt.sizeDelta = new Vector2(90f, 40f);
+
+                var t = go.AddComponent<TextMeshProUGUI>();
+                var label = b.GetComponentInChildren<TextMeshProUGUI>(true);
+                if (label != null) t.font = label.font;
+                t.fontSize = 28;
+                t.alignment = TextAlignmentOptions.Right;
+                t.color = Color.black;
+                t.raycastTarget = false;
+                _rowStatus[i] = t;
+            }
+        }
+
+        // 【做什么】切换标签页（横向：训练 / 主菜单）
+        public void SelectTab(int t)
+        {
+            _tab = (t == 1) ? 1 : 0;
+            if (trainPage != null) trainPage.SetActive(_tab == 0);
+            if (mainPage != null) mainPage.SetActive(_tab == 1);
+            if (tabTitle != null) tabTitle.text = _tab == 0 ? "训练" : "主菜单";
+
+            // 标签按钮：字体黑色 + 选中用"底色高亮"（不再把字变黄）
+            if (tabButtons != null)
+                for (int i = 0; i < tabButtons.Length; i++)
+                {
+                    if (tabButtons[i] == null) continue;
+                    var tcb = tabButtons[i].colors;
+                    tcb.normalColor = (i == _tab) ? selectionColor : Color.white;
+                    tcb.selectedColor = selectionColor;
+                    tcb.highlightedColor = selectionColor;
+                    tabButtons[i].colors = tcb;
+
+                    var t2 = tabButtons[i].GetComponentInChildren<TMP_Text>(true);
+                    if (t2 != null) t2.color = Color.black;
+                }
+
+            _index = 0;
+            if (ActiveButtons != null && ActiveButtons.Length > 0) SelectRow(0);
+        }
+
+        // 【做什么】主菜单按钮按 RectTransform 的 y 从大到小排序（上→下），
+        //   使方向键循环顺序与界面所见一致（不受重排布局影响）
+        private void OrderMainButtons()
+        {
+            if (mainButtons == null || mainButtons.Length < 2) return;
+            System.Array.Sort(mainButtons, (a, b) =>
+            {
+                if (a == null || b == null) return 0;
+                var ra = a.GetComponent<RectTransform>();
+                var rb = b.GetComponent<RectTransform>();
+                float ya = ra != null ? ra.anchoredPosition.y : 0f;
+                float yb = rb != null ? rb.anchoredPosition.y : 0f;
+                return yb.CompareTo(ya);
+            });
+        }
+
+        // 【做什么】主菜单动作：按按钮名字分发（不依赖索引顺序）
+        private void ActivateMain(int i)
+        {
+            var act = mainButtons;
+            if (act == null || i < 0 || i >= act.Length || act[i] == null) return;
+
+            string n = act[i].gameObject.name;
+            if (n.Contains("MoveList")) ShowMoveList();                                   // 出招表
+            else if (n.Contains("Restart")) RestartGame();                                // 重新开始
+            else if (n.Contains("Quit")) { if (controller != null) controller.ExitTraining(); }   // 返回标题
+            else { if (controller != null) controller.SetMenu(false); }                    // 继续
+        }
+
+        private void RestartGame()
+        {
+            if (controller != null) controller.ExitTraining();
+            if (GameManager.Instance != null) GameManager.Instance.SwitchState(GameState.CharacterSelect);
+        }
+
+        private void ShowMoveList()
+        {
+            var ml = Object.FindObjectOfType<SuperSmashLike.UI.MoveListUI>();
+            if (ml == null) return;
+            var gs = GameManager.Instance != null ? GameManager.Instance.gameSettings : null;
+            var fd = gs != null ? gs.GetSelection(0) : null;
+            ml.ShowFor(fd, 0, true);
         }
 
         // 【做什么】给每行按钮绑定 onClick（鼠标点击也能用，不只是键盘索引）
         private void ApplyRowClicks()
         {
-            if (rowButtons == null) return;
-            for (int i = 0; i < rowButtons.Length; i++)
-            {
-                var b = rowButtons[i];
-                if (b == null) continue;
-                int idx = i;
-                b.onClick.RemoveAllListeners();
-                b.onClick.AddListener(() => Activate(idx));
-            }
+            if (rowButtons != null)
+                for (int i = 0; i < rowButtons.Length; i++)
+                {
+                    var b = rowButtons[i]; if (b == null) continue;
+                    int idx = i;
+                    b.onClick.RemoveAllListeners();
+                    b.onClick.AddListener(() => Activate(idx));
+                }
+            if (tabButtons != null)
+                for (int i = 0; i < tabButtons.Length; i++)
+                {
+                    var b = tabButtons[i]; if (b == null) continue;
+                    int idx = i;
+                    b.onClick.RemoveAllListeners();
+                    b.onClick.AddListener(() => SelectTab(idx));
+                }
+            if (mainButtons != null)
+                for (int i = 0; i < mainButtons.Length; i++)
+                {
+                    var b = mainButtons[i]; if (b == null) continue;
+                    int idx = i;
+                    b.onClick.RemoveAllListeners();
+                    b.onClick.AddListener(() => ActivateMain(idx));
+                }
         }
 
         private void Update()
         {
             var gp = Gamepad.current;
+
+            // ---- 切换标签页（Q/E 或 手柄 LB/RB）----
+            int tabDir = 0;
+            if (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.Tab)) tabDir = -1;
+            else if (Input.GetKeyDown(KeyCode.E)) tabDir = 1;
+            if (tabDir == 0 && gp != null && Time.unscaledTime >= _nextNav)
+            {
+                if (gp.leftShoulder.wasPressedThisFrame) { tabDir = -1; _nextNav = Time.unscaledTime + navRepeatDelay; }
+                else if (gp.rightShoulder.wasPressedThisFrame) { tabDir = 1; _nextNav = Time.unscaledTime + navRepeatDelay; }
+            }
+            if (tabDir != 0 && tabButtons != null && tabButtons.Length > 0)
+            {
+                SelectTab((_tab + tabDir + tabButtons.Length) % tabButtons.Length);
+                return;
+            }
 
             // ---- 关闭（Esc 由控制器 toggle，这里只管 K/小键盘2/手柄B）----
             if (Input.GetKeyDown(KeyCode.K) || Input.GetKeyDown(KeyCode.Keypad2)
@@ -92,7 +243,7 @@ namespace SuperSmashLike.Training
                 || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space)
                 || (gp != null && gp.buttonSouth.wasPressedThisFrame))
             {
-                Activate(_index);
+                if (_tab == 0) Activate(_index); else ActivateMain(_index);
                 return;
             }
 
@@ -110,9 +261,10 @@ namespace SuperSmashLike.Training
                 else if (nav.y < -0.5f) dir = 1;
             }
 
-            if (dir != 0 && rowButtons != null && rowButtons.Length > 0)
+            var act = ActiveButtons;
+            if (dir != 0 && act != null && act.Length > 0)
             {
-                _index = (_index + dir + rowButtons.Length) % rowButtons.Length;
+                _index = (_index + dir + act.Length) % act.Length;
                 SelectRow(_index);
                 _nextNav = Time.unscaledTime + navRepeatDelay;
             }
@@ -139,19 +291,20 @@ namespace SuperSmashLike.Training
             Refresh();
         }
 
-        // 【做什么】切换帧数据面板 —— 只切它的文本子物体
-        // 【注意】TrainingFrameDataPanel 挂在 HUD 根上，直接关 gameObject 会连整个 HUD 一起关
-        //   （随后被 TrainingModeController 立刻重新打开 → 看起来"关了还在"）
+        // 【做什么】切换"帧数据"：同时控制 帧数据面板 + 帧数表（统一开关）
         private void ToggleFrameData()
         {
+            bool now = !FrameDataVisible();
+            if (controller != null) controller.FrameDataOn = now;
             var go = FrameDataTarget();
-            if (go != null) go.SetActive(!go.activeSelf);
+            if (go != null) go.SetActive(now);
         }
 
         private bool FrameDataVisible()
         {
+            if (controller != null) return controller.FrameDataOn;
             var go = FrameDataTarget();
-            return go != null && go.activeSelf;
+            return go == null || go.activeSelf;
         }
 
         private GameObject FrameDataTarget()
@@ -165,7 +318,7 @@ namespace SuperSmashLike.Training
         {
             if (rowLabels == null) return;
             SetLabel(0, "继续");
-            SetLabel(1, $"CPU（木桩）      {(controller != null && controller.CpuEnabled ? "开" : "关")}");
+            SetLabel(1, $"CPU（木桩）      {(controller != null && !controller.CpuEnabled ? "开" : "关")}");
             SetLabel(2, $"无敌             {(controller != null && controller.Invincible ? "开" : "关")}");
             SetLabel(3, $"慢动作           {(controller != null && controller.SlowMoActive ? "开" : "关")}");
             SetLabel(4, $"判定框           {(boxOverlay != null && boxOverlay.showBoxes ? "开" : "关")}");
@@ -173,6 +326,32 @@ namespace SuperSmashLike.Training
             SetLabel(6, $"HUD              {(controller != null && controller.HudVisible ? "开" : "关")}");
             SetLabel(7, "重置位置");
             SetLabel(8, "退出训练");
+
+            // 开关行：开=按钮底色高亮（绿），关=白
+            SetRowState(1, controller != null && !controller.CpuEnabled);   // 木桩开 = CPU 冻结
+            SetRowState(2, controller != null && controller.Invincible);
+            SetRowState(3, controller != null && controller.SlowMoActive);
+            SetRowState(4, boxOverlay != null && boxOverlay.showBoxes);
+            SetRowState(5, FrameDataVisible());
+            SetRowState(6, controller != null && controller.HudVisible);
+        }
+
+        // 【做什么】按开关状态给按钮上底色高亮（开=绿 / 关=白），并在右侧写"开/关"
+        // 【注意】"开"高亮与"选中"高亮叠加：选中时用两者混合色
+        private void SetRowState(int i, bool on)
+        {
+            if (rowButtons == null || i >= rowButtons.Length || rowButtons[i] == null) return;
+            var b = rowButtons[i];
+
+            var onColor = new Color(0.45f, 0.9f, 0.45f, 1f);
+            var cb = b.colors;
+            cb.normalColor = on ? onColor : Color.white;
+            cb.selectedColor = on ? Color.Lerp(onColor, selectionColor, 0.5f) : selectionColor;
+            cb.highlightedColor = cb.selectedColor;
+            b.colors = cb;
+
+            if (_rowStatus != null && i < _rowStatus.Length && _rowStatus[i] != null)
+                _rowStatus[i].text = on ? "开" : "关";
         }
 
         private void SetLabel(int i, string s)
@@ -180,17 +359,23 @@ namespace SuperSmashLike.Training
             if (rowLabels.Length > i && rowLabels[i] != null) rowLabels[i].text = s;
         }
 
-        // 【做什么】给每个行按钮设置黄色选中高亮（与暂停菜单一致），并关闭自动导航
+        // 【做什么】给所有按钮（训练行 / 主菜单行 / 标签）设黄色选中高亮 + 关闭自动导航
         private void ApplyRowColors()
         {
-            if (rowButtons == null) return;
-            for (int i = 0; i < rowButtons.Length; i++)
-            {
-                var b = rowButtons[i];
-                if (b == null) continue;
+            StyleButtons(rowButtons);
+            StyleButtons(mainButtons);
+            StyleButtons(tabButtons);
+        }
 
+        private void StyleButtons(Button[] arr)
+        {
+            if (arr == null) return;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var b = arr[i];
+                if (b == null) continue;
                 var nav = b.navigation;
-                nav.mode = Navigation.Mode.None;   // 由本脚本接管导航
+                nav.mode = Navigation.Mode.None;
                 b.navigation = nav;
 
                 var cb = b.colors;
@@ -206,10 +391,11 @@ namespace SuperSmashLike.Training
 
         private void SelectRow(int i)
         {
-            if (rowButtons == null || rowButtons.Length == 0) return;
-            if (i < 0 || i >= rowButtons.Length) return;
+            var act = ActiveButtons;
+            if (act == null || act.Length == 0) return;
+            if (i < 0 || i >= act.Length) return;
             if (EventSystem.current != null)
-                EventSystem.current.SetSelectedGameObject(rowButtons[i].gameObject);
+                EventSystem.current.SetSelectedGameObject(act[i].gameObject);
         }
 
         #endregion
