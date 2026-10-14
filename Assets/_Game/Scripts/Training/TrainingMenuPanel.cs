@@ -219,9 +219,16 @@ namespace SuperSmashLike.Training
 
         private void Update()
         {
-            // 出招表打开时：键盘交给出招表处理，菜单不抢键（避免 K 关错对象）
+            // 出招表打开时：由本面板负责响应"关闭"键（出招表自身不处理关闭）
             if (_moveList == null) _moveList = Object.FindObjectOfType<SuperSmashLike.UI.MoveListUI>(true);
-            if (_moveList != null && _moveList.gameObject.activeSelf) return;
+            if (_moveList != null && _moveList.gameObject.activeSelf)
+            {
+                var gp0 = Gamepad.current;
+                if (Input.GetKeyDown(KeyCode.K) || Input.GetKeyDown(KeyCode.Keypad2)
+                    || (gp0 != null && gp0.buttonEast.wasPressedThisFrame))
+                    _moveList.Close();
+                return;
+            }
 
             var gp = Gamepad.current;
 
