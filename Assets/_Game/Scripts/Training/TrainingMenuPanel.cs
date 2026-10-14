@@ -27,6 +27,9 @@ namespace SuperSmashLike.Training
     {
         #region 1. Inspector 配置
 
+        [Header("每行右侧的 开/关 状态字（留空则自动按名字 Status/State 或文本 开/关 查找）")]
+        public TMP_Text[] rowStatusTexts = new TMP_Text[9];
+
         [Header("Refs")]
         public TrainingModeController controller;
         public TrainingBoxOverlay boxOverlay;
@@ -76,39 +79,43 @@ namespace SuperSmashLike.Training
 
             ApplyRowColors();
             ApplyRowClicks();
-            EnsureRowStatus();
+            StretchStatusTexts();
             Refresh();
             SelectTab(0);
         }
 
-        // 【做什么】给每个开关行右侧创建一个"开/关"状态字（运行时创建，不改场景布局）
-        private void EnsureRowStatus()
+        // 【做什么】取某行的"开/关"状态字：优先用接线，其次自动按名字/内容查找（不再运行时新建）
+        private TMP_Text StatusText(int i)
+        {
+            if (rowStatusTexts != null && i < rowStatusTexts.Length && rowStatusTexts[i] != null)
+                return rowStatusTexts[i];
+
+            if (rowButtons != null && i < rowButtons.Length && rowButtons[i] != null)
+            {
+                foreach (var t in rowButtons[i].GetComponentsInChildren<TMP_Text>(true))
+                {
+                    if (t == null) continue;
+                    var n = t.gameObject.name;
+                    if (n.Contains("Status") || n.Contains("State") || t.text == "开" || t.text == "关")
+                        return t;
+                }
+            }
+            return null;
+        }
+
+        // 【做什么】把每行的状态字拉伸到与按钮一样大
+        private void StretchStatusTexts()
         {
             if (rowButtons == null) return;
-            if (_rowStatus != null && _rowStatus.Length == rowButtons.Length) return;
-
-            _rowStatus = new TMP_Text[rowButtons.Length];
             for (int i = 0; i < rowButtons.Length; i++)
             {
-                var b = rowButtons[i];
-                if (b == null) continue;
-
-                var go = new GameObject("RowStatus", typeof(RectTransform));
-                go.transform.SetParent(b.transform, false);
-                var rt = go.GetComponent<RectTransform>();
-                rt.anchorMin = rt.anchorMax = new Vector2(1f, 0.5f);   // 行右侧
-                rt.pivot = new Vector2(1f, 0.5f);
-                rt.anchoredPosition = new Vector2(-24f, 0f);
-                rt.sizeDelta = new Vector2(90f, 40f);
-
-                var t = go.AddComponent<TextMeshProUGUI>();
-                var label = b.GetComponentInChildren<TextMeshProUGUI>(true);
-                if (label != null) t.font = label.font;
-                t.fontSize = 28;
-                t.alignment = TextAlignmentOptions.Right;
-                t.color = Color.black;
-                t.raycastTarget = false;
-                _rowStatus[i] = t;
+                var st = StatusText(i);
+                if (st == null) continue;
+                var rt = st.rectTransform;
+                rt.anchorMin = Vector2.zero;
+                rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
             }
         }
 
@@ -335,12 +342,12 @@ namespace SuperSmashLike.Training
         {
             if (rowLabels == null) return;
             SetLabel(0, "继续");
-            SetLabel(1, $"CPU（木桩）      {(controller != null && !controller.CpuEnabled ? "开" : "关")}");
-            SetLabel(2, $"无敌             {(controller != null && controller.Invincible ? "开" : "关")}");
-            SetLabel(3, $"慢动作           {(controller != null && controller.SlowMoActive ? "开" : "关")}");
-            SetLabel(4, $"判定框           {(boxOverlay != null && boxOverlay.showBoxes ? "开" : "关")}");
-            SetLabel(5, $"帧数据面板       {(FrameDataVisible() ? "开" : "关")}");
-            SetLabel(6, $"HUD              {(controller != null && controller.HudVisible ? "开" : "关")}");
+            SetLabel(1, "CPU（木桩）");
+            SetLabel(2, "无敌");
+            SetLabel(3, "慢动作");
+            SetLabel(4, "判定框");
+            SetLabel(5, "帧数据面板");
+            SetLabel(6, "HUD");
             SetLabel(7, "重置位置");
             SetLabel(8, "退出训练");
 
@@ -367,8 +374,8 @@ namespace SuperSmashLike.Training
             cb.highlightedColor = cb.selectedColor;
             b.colors = cb;
 
-            if (_rowStatus != null && i < _rowStatus.Length && _rowStatus[i] != null)
-                _rowStatus[i].text = on ? "开" : "关";
+            var st = StatusText(i);
+            if (st != null) st.text = on ? "开" : "关";
         }
 
         private void SetLabel(int i, string s)
