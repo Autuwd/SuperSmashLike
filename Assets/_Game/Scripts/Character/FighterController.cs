@@ -113,6 +113,22 @@ namespace SuperSmashLike.Core
         public bool isShielding;       // 是否在举盾
         public GameObject shieldVisual;   // 护盾贴图（Prefab 里的 ShieldVisual），只在举盾时显示
 
+        // 【M6-D2】护盾耐久上限 = 全局 shieldMaxHP × 角色盾耐倍率（圣骑士 1.35，其余 1.0）。
+        //   只做"读"的封装：不做缓存，避免 fighterData / GameSettings 变化后上限失真。
+        // 【注意】ShieldVisual 用它当"满盾"基准，改公式时两处要一起改。
+        public float MaxShieldHP => ResolveMaxShieldHP();
+
+        private float ResolveMaxShieldHP()
+        {
+            float baseHp = (GameManager.Instance != null && GameManager.Instance.gameSettings != null)
+                ? GameManager.Instance.gameSettings.shieldMaxHP
+                : 50f;                                                 // 与既有兜底值一致
+            float mult = (fighterData != null && fighterData.shieldMaxHPMultiplier > 0f)
+                ? fighterData.shieldMaxHPMultiplier
+                : 1f;
+            return baseHp * mult;
+        }
+
         [Header("Parry")]
         public int parryWindowFrames = 10;           // 盾反窗口：举盾后 10 帧内被命中算盾反
         public float parryStunDuration = 1.2f;       // 攻击者被盾反后的眩晕时长(≥1s)
@@ -268,7 +284,7 @@ namespace SuperSmashLike.Core
         private void Start()
         {
             StateMachine.Initialize(FighterState.Idle);                        // 初始状态 = 待机
-            currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;   // 满盾
+            currentShieldHP = ResolveMaxShieldHP();                            // 满盾（含角色盾耐倍率）
             remainingJumps = fighterData.jumpCount;                            // 满跳跃次数
             specialUpUsed = false;                                             // 恢复上B
             remainingStocks = GameManager.Instance.gameSettings.stockCount;    // 同步剩余命数
@@ -587,7 +603,7 @@ namespace SuperSmashLike.Core
                 if (currentShieldHP <= 0f)
                     BreakShield();
             }
-            else if (currentShieldHP < GameManager.Instance.gameSettings.shieldMaxHP)
+            else if (currentShieldHP < ResolveMaxShieldHP())
             {
                 currentShieldHP += GameManager.Instance.gameSettings.shieldRegenPerSecond * Time.deltaTime;
             }
@@ -917,7 +933,8 @@ namespace SuperSmashLike.Core
                 isShielding = false;
                 StateMachine.TransitionTo(FighterState.Idle);
 
-                if (shieldVisual != null) shieldVisual.SetActive(true);
+                // 【修正 10-16】松盾必须【隐藏】护盾贴图；原为 true，导致松盾后贴图常驻。
+                if (shieldVisual != null) shieldVisual.SetActive(false);
             }
         }
 
@@ -1540,9 +1557,7 @@ namespace SuperSmashLike.Core
             lastAttackerPlayerId = -1;
             if (GameManager.Instance != null && GameManager.Instance.gameSettings != null)
                 remainingStocks = GameManager.Instance.gameSettings.stockCount;   // 命数复位 ← 关键
-            currentShieldHP = GameManager.Instance != null && GameManager.Instance.gameSettings != null
-                ? GameManager.Instance.gameSettings.shieldMaxHP
-                : 50f;
+            currentShieldHP = ResolveMaxShieldHP();
             isShielding = false;
             isInvincible = false;        // 不给重生无敌
             respawnTimer = 0f;
@@ -1618,9 +1633,7 @@ namespace SuperSmashLike.Core
             isInvincible = false;
 
             isShielding = false;
-            currentShieldHP = GameManager.Instance != null && GameManager.Instance.gameSettings != null
-                ? GameManager.Instance.gameSettings.shieldMaxHP
-                : 50f;
+            currentShieldHP = ResolveMaxShieldHP();
             if (shieldVisual != null) shieldVisual.SetActive(false);
 
             remainingJumps = fighterData != null ? fighterData.jumpCount : 2;
@@ -1684,7 +1697,7 @@ namespace SuperSmashLike.Core
             // 顺便确保渲染器可见（防止上次闪烁残留 enabled=false）
             if (_visualRenderers != null)
                 foreach (var r in _visualRenderers) if (r != null) r.enabled = true;
-            currentShieldHP = GameManager.Instance.gameSettings.shieldMaxHP;
+            currentShieldHP = ResolveMaxShieldHP();
             isShielding = false;
             remainingJumps = fighterData.jumpCount;
 

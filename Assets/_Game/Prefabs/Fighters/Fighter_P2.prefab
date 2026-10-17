@@ -561,6 +561,7 @@ MonoBehaviour:
   knockbackVelocity: {x: 0, y: 0}
   isInKnockback: 0
   hitReactKnockSpeedThreshold: 3
+  lastAttackerPlayerId: -1
   gravityScale: 2.2
   fastFallMultiplier: 1.6
   jumpBufferTime: 0.1
@@ -574,6 +575,7 @@ MonoBehaviour:
   shieldBreakStunDuration: 3
   techBounceSpeed: 6
   techInvincibleTime: 0.5
+  debugInvincible: 0
   throwKnockbackScale: 0.35
   throwClearDist: 0.75
   throwSlamLift: 0.6
@@ -593,6 +595,7 @@ MonoBehaviour:
   velocity: {x: 0, y: 0}
   grabTarget: {fileID: 0}
   grabber: {fileID: 0}
+  knockbackStartupGraceSeconds: 0.12
   hitboxActivatedThisAttack: 0
   heavyStunDuration: 1.1
 --- !u!114 &2503629124996281800
@@ -602,7 +605,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7541988065048707383}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f101230bae8b8547a90fdd1e01ac9dd, type: 3}
   m_Name: 
@@ -687,6 +690,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   difficulty: 2
+  difficultyFromSettings: 1
   attackRange: 1.6
   attackHysteresis: 0.2
   highDamageThreshold: 80
@@ -695,6 +699,15 @@ MonoBehaviour:
   aiFrozen: 0
   verticalRangeAbove: 1.46
   verticalRangeBelow: 0.96
+  edgeDangerMargin: 3
+  edgeSafeMargin: 7
+  hopMaxDuration: 2
+  evadeDuration: 0.25
+  rangedHoldDistance: 4.5
+  rangedFireMinDistance: 3.5
+  flankMaxDuration: 1.2
+  flankTriggerDistance: 3
+  finisherDamagePercent: 80
 --- !u!1 &7878195383905611534
 GameObject:
   m_ObjectHideFlags: 0

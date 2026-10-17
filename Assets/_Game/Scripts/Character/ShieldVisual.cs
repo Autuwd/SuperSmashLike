@@ -6,7 +6,7 @@ using UnityEngine;
 //   1. 举盾时显示护盾，松盾/破盾时隐藏
 //   2. 耐久越低盾越小（血条式反馈，满盾 1.0 → 残盾 0.15）
 // 架构位置：Character 层，纯表现，不参与任何战斗逻辑
-// 依赖：FighterController（读 isShielding / currentShieldHP）、GameSettings（读 shieldMaxHP）
+// 依赖：FighterController（读 isShielding / currentShieldHP / MaxShieldHP）、GameSettings（读 shieldMaxHP）
 //
 // 挂载方式：Fighter 根物体下新建子物体 ShieldVisual
 //   → 加 SpriteRenderer（默认材质即可，内置管线天然透明队列）
@@ -59,7 +59,11 @@ namespace SuperSmashLike.Core
                 sr.enabled = visible;
 
             // 大小：耐久比例映射到缩放，最低 0.15 倍保证还看得见
-            float hpRatio = Mathf.Clamp01(fighter.currentShieldHP / shieldMaxHP);
+            // 【M6-D2】基准必须用"角色自己的上限"（全局值 × 盾耐倍率）：圣骑士盾耐 1.35 时，
+            //   若仍除全局值 → 满盾只到 74%、还没破盾盾环就先空了。
+            float maxHp = fighter.MaxShieldHP;
+            if (maxHp <= 0f) maxHp = shieldMaxHP;      // 兜底：角色侧暂时取不到就用全局值
+            float hpRatio = Mathf.Clamp01(fighter.currentShieldHP / maxHp);
             float targetScale = hpRatio <= 0f ? 0f : Mathf.Max(0.15f, hpRatio);
             float s = Mathf.SmoothDamp(transform.localScale.x, targetScale, ref scaleVel, 0.05f);
             transform.localScale = Vector3.one * s;

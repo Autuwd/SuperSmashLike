@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "gamedev-mcp": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "C:\\Users\\Administrator\\AppData\\Local\\gamedev-mcp-server\\gamedev-mcp-server.exe",
+        "--port=8081",
+        "--client-transport=stdio"
+      ],
+      "environment": {}
+    }
+  }
+}

@@ -398,6 +398,8 @@ namespace SuperSmashLike.UI
             {
                 GameSettings s = GameManager.Instance.gameSettings;
                 s.SetSelection(pid, _fighterList[idx]);
+                // 【M6-D1】写入选择后立即换将：按所选角色的 fighterPrefab 替换场景中的斗士实例
+                FighterSwapService.ApplySelection(pid);
             }
 
             _confirmed[pid] = true;

@@ -40,3 +40,7 @@ Assets/_Game/Fonts/*.TTC
 Assets/_Game/Fonts/*.ttc
 Assets/_Game/Fonts/*.TTC.meta
 Assets/_Game/Fonts/*.ttc.meta
+
+# Unity-MCP 插件的 NuGet 依赖缓存（Editor domain reload 时自动恢复，不入库）
+Assets/Plugins/NuGet/
+Assets/Plugins/NuGet.meta

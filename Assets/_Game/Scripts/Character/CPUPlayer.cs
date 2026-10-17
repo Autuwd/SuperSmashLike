@@ -48,6 +48,7 @@ namespace SuperSmashLike.Core
         Guard,      // 防御——举盾
         Evade,      // 闪避——起跳 + 反向输入（引擎无 dodge API，只能这样组合，见 CanStartEvade）
         Hop,        // 跳跃/空中调整——台边求生：朝台心走，掉到台面以下就起跳抢高度
+        Flank,      // 绕后——跳越过对手，从背后进攻（D5：决策丰富化）
     }
 
     // AI 难度档位（D2-①）
@@ -59,6 +60,17 @@ namespace SuperSmashLike.Core
         Normal = 1, 
         Hard = 2, 
         Expert = 3 
+    }
+
+    // 【新增 · D5】出招意图：Decide 决定"这一拳是为什么打的"，ChooseStrike 据此挑槽位。
+    //   【重点】战略（要不要打）与选招（用哪一招）分离 —— 改难度只需动 Decide/Profile，
+    //   不必碰选招表；反之换招式表也不必碰决策链。
+    public enum StrikeIntent
+    {
+        Neutral,    // 常规对拼：双方干净时的轻快起手
+        Chase,      // 追击：对手被击飞/硬直，压上去收残
+        Punish,     // 择时惩罚：读到对手攻击后摇，抓最重的一拳
+        Pressure,   // 压制：对手举盾时打盾（破盾值优先）
     }
 
     // 一个决策周期内的只读感知快照
@@ -83,9 +95,21 @@ namespace SuperSmashLike.Core
         public readonly bool SelfNearEdge;       // 自己是否已进入台边危险带
         public readonly float SelfTowardCenterX; // 该往台心走的方向（+1 右 / -1 左），不危险时为 0
 
+        // 【新增 · D5】决策丰富化的扩展感知（读招/绕后/压制/终结判断所需）。
+        //   同 D2 的 SelfNearEdge 一样，全部是"观察到的事实"（纯只读），
+        //   不是决策结果 —— 保证 Decide 里不会出现"状态 A 判该不该去状态 B"的双向依赖。
+        public readonly bool OpponentRecovering;    // 对手处于【攻击后摇】窗口（我的惩罚时机）
+        public readonly bool OpponentShielding;     // 对手正在举盾（压制/抓取机会）
+        public readonly bool OpponentGrounded;      // 对手是否在地面（空对地/对空选招用）
+        public readonly float OpponentDamagePercent; // 对手累计伤害百分比（终结技判定用）
+        public readonly bool OpponentNearEdge;      // 对手靠近台边/台面之下（施压与击杀机会）
+        public readonly bool IAmBehindOpponent;     // 我是否站在对手背后（相对其朝向）
+
         public Perception(float distance, float direction, float hightDifference, bool opponentAttacking,
                           bool opponentInStun ,bool selfStunned, bool selfGrounded,
-                          float selfDamagePercent, bool selfNearEdge, float selfTowardCenterX)
+                          float selfDamagePercent, bool selfNearEdge, float selfTowardCenterX,
+                          bool opponentRecovering, bool opponentShielding, bool opponentGrounded,
+                          float opponentDamagePercent, bool opponentNearEdge, bool iAmBehindOpponent)
         {
             Distance = distance;
             Direction = direction;
@@ -97,6 +121,12 @@ namespace SuperSmashLike.Core
             SelfDamagePercent = selfDamagePercent;
             SelfNearEdge = selfNearEdge;
             SelfTowardCenterX = selfTowardCenterX;
+            OpponentRecovering = opponentRecovering;
+            OpponentShielding = opponentShielding;
+            OpponentGrounded = opponentGrounded;
+            OpponentDamagePercent = opponentDamagePercent;
+            OpponentNearEdge = opponentNearEdge;
+            IAmBehindOpponent = iAmBehindOpponent;
         }
     }
 
@@ -113,6 +143,20 @@ namespace SuperSmashLike.Core
         [Range(0f, 1f)] public float guardChance;
         [Tooltip("闪避概率 0~1")]
         [Range(0f, 1f)] public float evadeChance;
+
+        // ---- 【新增 · D5】行为门控：难度差 = 行为差，不是频率差 ----
+        //   低难度这些门≈0：放过破绽、干等对手收盾、被后摇惩罚也不会抓、从不绕后；
+        //   高难度几乎全开：会追击收残、会读后摇惩罚、会压盾、会绕后。
+        [Tooltip("追击概率 0~1：对手被硬直/被击飞时继续压上（低难度≈0 = 放过破绽）")]
+        [Range(0f, 1f)] public float chaseChance;
+        [Tooltip("绕后概率 0~1：近身时偶尔跳越过对手，从背后进攻")]
+        [Range(0f, 1f)] public float flankChance;
+        [Tooltip("压制概率 0~1：对手举盾时持续打盾（低难度 = 干等对手收盾）")]
+        [Range(0f, 1f)] public float pressureChance;
+        [Tooltip("择时/读招概率 0~1：越高越会读对手后摇抓惩罚、且不胡乱对拼")]
+        [Range(0f, 1f)] public float punishChance;
+        [Tooltip("终结倾向 0~1：对手伤害高时改用击退最强的 smash 收头")]
+        [Range(0f, 1f)] public float finisherBias;
     }
 
     [RequireComponent(typeof(FighterController))]
@@ -161,6 +205,14 @@ namespace SuperSmashLike.Core
         [SerializeField] private float rangedHoldDistance = 4.5f;
         [Tooltip("远程角色启用投射物技的最小距离。【注意】应【小于】rangedHoldDistance，两者之间形成【停下风筝】的区间")]
         [SerializeField] private float rangedFireMinDistance = 3.5f;
+
+        [Header("行为丰富化（D5）")]
+        [Tooltip("绕后（Flank）最长持续秒数，超时强制回 Approach —— 与 hopMaxDuration 同一兜底思路")]
+        [SerializeField] private float flankMaxDuration = 1.2f;
+        [Tooltip("允许发起绕后的最大水平距离：只有近身才跳越，太远跳不过去")]
+        [SerializeField] private float flankTriggerDistance = 3f;
+        [Tooltip("终结技判定阈值：对手伤害达到此值 + finisherBias 命中 → 改用击退最强的横 smash 收头")]
+        [SerializeField] private float finisherDamagePercent = 80f;
         #endregion
 
         #region 2. 运行时状态
@@ -181,8 +233,8 @@ namespace SuperSmashLike.Core
         //   现在把"这次出哪一招"提前选好存进 pendingStrike，
         //   BeginStrike / TickStrike / 出招冻结判定全部只读它 —— 单一真源。
         private AttackData pendingStrike;        // 本次 Strike 选定的招式（jab1 或投射物特殊技）
-        private AttackData myRangedSpecial;      // 本角色的投射物特殊技；null = 近战角色
-        private bool isRangedFighter;            // 是否远程角色（= myRangedSpecial != null）
+        private AttackData myRangedSpecial;      // 本角色的投射物特殊技（仅 Ranged 定位才解析；null = 无）
+        private bool isRangedFighter;            // 是否远程定位（= FighterData.aiArchetype == Ranged）
         // 【新增 · D2-⑤】远程射击带的滞回状态（语义同 InAttackBand 的 closingIn：
         //   true = 已在带外侧，需要靠近才进带）。与 closingIn 分开是因为两条带
         //   阈值不同，共用一个状态会互相污染出带判据。
@@ -196,20 +248,55 @@ namespace SuperSmashLike.Core
         private float hopStartTime;        // 本次 Hop 的起始时刻（超时兜底用）
         private float evadeStartTime;      // 本次 Evade 的起始时刻
 
+        // ---- 【新增 · D5】行为丰富化运行时状态 ----
+        private StrikeIntent pendingIntent = StrikeIntent.Neutral;  // 本次出招的意图（BeginStrike 据此计数）
+        private float flankStartTime;      // 本次 Flank 的起始时刻（超时兜底用）
+        private float flankSide0;          // 发起绕后时对手所在的侧向（+1 右 / -1 左）；方向翻转 = 已越过
+        private float flankCooldownUntil;  // 下次可绕后的最早时刻（避免连续跳越抽搐）
+        private bool lastPickWasFinisher;  // 本次选招是否走了"终结技"分支（计数用）
+
         // 【注意】只缓存【一个】方向量。指向台心的方向不在这里缓存 ——
         //   它已经由 Perception.SelfTowardCenterX 提供了（TickHop 读 p 即可）。
         //   留两份真源就是本文件上方警告过的那种"静默打架"：改一处忘另一处，
         //   表现为 AI 朝错误方向跑且极难复现。故此处只留 curDirection。
         private float curDirection;       // 本 tick 指向对手的方向（+1 右 / -1 左）
 
-        // 四档预设（D2-① 的全部内容）
+        // 四档预设（D2-① 全部内容 + D5 行为门控）
+        // 【D5·难度设计】前 5 项是"节奏/频率"（D2 已有），后 5 项是"行为种类"——
+        //   简单档后 5 项几乎为 0：不追击、不绕后、不压盾、不读招、不终结；
+        //   专家档全部拉满：肉眼可辨"迟钝 vs 积极"，且差异不来自频率。
         private static readonly AIProfile[] Profiles =
         {
-            new AIProfile { decisionInterval = 0.50f, attackCooldown = 0.80f, strikeChance = 0.35f, guardChance = 0.15f, evadeChance = 0.05f }, // 简单
-            new AIProfile { decisionInterval = 0.32f, attackCooldown = 0.50f, strikeChance = 0.60f, guardChance = 0.35f, evadeChance = 0.15f }, // 普通
-            new AIProfile { decisionInterval = 0.20f, attackCooldown = 0.30f, strikeChance = 0.80f, guardChance = 0.60f, evadeChance = 0.30f }, // 困难
-            new AIProfile { decisionInterval = 0.12f, attackCooldown = 0.18f, strikeChance = 0.95f, guardChance = 0.80f, evadeChance = 0.50f }, // 专家
+            new AIProfile { decisionInterval = 0.50f, attackCooldown = 0.80f, strikeChance = 0.35f, guardChance = 0.15f, evadeChance = 0.05f,
+                            chaseChance = 0.00f, flankChance = 0.00f, pressureChance = 0.05f, punishChance = 0.00f, finisherBias = 0.00f }, // 简单
+            new AIProfile { decisionInterval = 0.32f, attackCooldown = 0.50f, strikeChance = 0.60f, guardChance = 0.35f, evadeChance = 0.15f,
+                            chaseChance = 0.35f, flankChance = 0.10f, pressureChance = 0.30f, punishChance = 0.30f, finisherBias = 0.30f }, // 普通
+            new AIProfile { decisionInterval = 0.20f, attackCooldown = 0.30f, strikeChance = 0.80f, guardChance = 0.60f, evadeChance = 0.30f,
+                            chaseChance = 0.65f, flankChance = 0.30f, pressureChance = 0.60f, punishChance = 0.60f, finisherBias = 0.55f }, // 困难
+            new AIProfile { decisionInterval = 0.12f, attackCooldown = 0.18f, strikeChance = 0.95f, guardChance = 0.80f, evadeChance = 0.50f,
+                            chaseChance = 0.90f, flankChance = 0.55f, pressureChance = 0.90f, punishChance = 0.90f, finisherBias = 0.80f }, // 专家
         };
+
+        // ---- M6-D5 行为计数（只读公开，供无头冒烟取证"难度差 ≠ 频率差"）----
+        //   每局开打清零（见 HandleStateChanged_ApplyDifficulty）。
+        public int statChase { get; private set; }      // 追击出招次数
+        public int statPunish { get; private set; }     // 择时惩罚出招次数
+        public int statPressure { get; private set; }   // 压制打盾出招次数
+        public int statFlank { get; private set; }      // 绕后发起次数
+        public int statFinisher { get; private set; }   // 终结技（smash 收头）次数
+        public int statNeutral { get; private set; }    // 常规对拼出招次数
+
+        // 【注意】public 是刻意的：行为计数要在【不打扰对局】的前提下被测试/冒烟脚本清零取样
+        //   （D5 验收证据：Easy 与 Expert 的行为计数对比，见 完整学习计划.md D5 行）。
+        public void ResetStats()
+        {
+            statChase = 0;
+            statPunish = 0;
+            statPressure = 0;
+            statFlank = 0;
+            statFinisher = 0;
+            statNeutral = 0;
+        }
 
         #endregion
 
@@ -242,7 +329,11 @@ namespace SuperSmashLike.Core
 
         private void HandleStateChanged_ApplyDifficulty(GameState state)
         {
-            if (state == GameState.Battle) ApplyDifficultyFromSettings();
+            if (state == GameState.Battle)
+            {
+                ApplyDifficultyFromSettings();
+                ResetStats();   // 【新增 · D5】每局开打清零行为计数（无头冒烟据此对比难度行为差）
+            }
         }
 
         // 【做什么】从全局规则读取 CPU 难度（0=简单 … 3=疯狂）
@@ -426,31 +517,116 @@ namespace SuperSmashLike.Core
                 return; 
             }
 
-            // 【新增 · D2-⑤】出招前先选招：远程角色在射程外用投射物技，贴身才回落 jab
-            // 【重点】门槛必须是 (inBand || inRangedBand)，不能只有 inBand：
-            //   inBand 外沿仅 1.92，而 rangedFireMinDistance=3.5，两者互斥。
-            //   只判 inBand 时 ChooseStrike 的 `Distance >= 3.5` 分支永不为真，
-            //   远程角色会一路贴在对手脸上用 jab —— 看起来"在攻击"，其实从不射击。
-            if (attackEnabled && !p.OpponentInStun && (inBand || inRangedBand))
+            // ================= 【新增 · D5】行为丰富化决策链 =================
+            // 【重点】顺序即优先级：退避反应 > 绕后 > 意图出招 > 保底。
+            //   为什么"退避反应"排在出招之前：对手招式已经压到脸上时，
+            //   先拉开比硬拼安全（硬拼由下面的 Neutral 意图兜底，两者概率独立）。
+            //   为什么"高伤撤退"降到出招之后：撤退只在"对手没有便宜可占"时才合理；
+            //   对手正在收招（我的惩罚窗口）时，打一拳比跑更安全。
+
+            // 【读招】只有档位命中 punishChance 时，AI 才"看得懂"对手的窗口。
+            //   低难度 punishChance=0 → 永远 readsThreat=false → 不惩罚、不闪避、不择时。
+            //   【重点】这就是"迟钝 vs 积极"的差异来源，不是攻击频率差异。
+            bool readsThreat = Rand01() < profile.punishChance;
+
+            // ---- ① 退避反应：读到对手压制手段 → 主动拉开（而不是只会举盾）----
+            if (attackEnabled && p.OpponentAttacking && inBand && readsThreat && Rand01() < 0.5f)
             {
-                AttackData chosen = ChooseStrike(p);
+                Enter(CPUState.Retreat);
+                return;
+            }
+
+            // ---- ② 绕后：近身时跳越过对手，从背后进攻 ----
+            //   条件刻意苛刻：对手靠台边不绕（会把自己送出台）、我在台边不绕、
+            //   对手硬直/出招中不绕（直接打更划算）、冷却未到不绕（防连续跳越抽搐）。
+            // 【重点】D5 修正：这里【不能】再要求 inBand。inBand 的外沿只有
+            //   attackRange*(1+attackHysteresis)=1.6*1.2=1.92，而 flankTriggerDistance=3.0。
+            //   一旦同时要求两者，3.0 就成了【永远不生效的死参数】，绕后只能在贴脸1.92内触发。
+            //   实测（双 CPU 对打 22s）flank 恒为 0，正是这条冗余门造成的。
+            //   距离交给 flankTriggerDistance 单独把关；高度差单独把关（防隔着一层楼跳越）。
+            bool canFlank = attackEnabled && p.SelfGrounded
+                            && p.Distance <= flankTriggerDistance
+                            && Mathf.Abs(p.HeightDifference) <= verticalRangeAbove
+                            && !p.OpponentInStun && !p.OpponentAttacking
+                            && !p.IAmBehindOpponent && !p.OpponentNearEdge && !p.SelfNearEdge
+                            && Time.time >= flankCooldownUntil && CanJumpNow();
+            if (canFlank && Rand01() < profile.flankChance)
+            {
+                Enter(CPUState.Flank);
+                return;
+            }
+
+            // ---- ③ 认意图：按优先级定意图（Pressure > Punish > Chase > Neutral）----
+            // 【重点】D5 修正：意图判定必须与"够不够得着"【解耦】。
+            //   旧版把整条意图链塞在 (inBand || inRangedBand) 门内 → 而 Chase/Punish
+            //   的触发前提恰恰是"对手被硬直/被击飞"，那正是【被击飞出台（>1.92）】的时刻
+            //   → 那两个分支永远跑不到。实测双 CPU 对打 22s（对手累计吃 88 伤害、
+            //   反复进入 Hit/Knockback）chase/punish 全为 0，只有中性兜底在涨。
+            //   现在：先看对手状态定意图，再问距离够不够打。
+            StrikeIntent intent = StrikeIntent.Neutral;
+            bool hasIntent = false;
+
+            if (p.OpponentShielding && Rand01() < profile.pressureChance)
+            {
+                intent = StrikeIntent.Pressure;          // 对手举盾 → 打盾
+                hasIntent = true;
+            }
+            else if ((p.OpponentRecovering || p.OpponentInStun) && readsThreat
+                     && Rand01() < profile.punishChance)
+            {
+                intent = StrikeIntent.Punish;            // 对手收招/硬直 → 抓惩罚
+                hasIntent = true;
+            }
+            else if (p.OpponentInStun || p.OpponentRecovering)
+            {
+                if (Rand01() < profile.chaseChance)
+                {
+                    intent = StrikeIntent.Chase;         // 对手被击飞 → 追击收残
+                    hasIntent = true;
+                }
+            }
+            else if (!p.OpponentAttacking || !readsThreat)
+            {
+                intent = StrikeIntent.Neutral;           // 双方干净 → 常规对拼
+                hasIntent = true;
+            }
+
+            // ---- ③b 够得着就打 ----
+            //   【重点】门槛必须是 (inBand || inRangedBand)：inBand 外沿仅 1.92，
+            //   而 rangedFireMinDistance=3.5，两者互斥；只判 inBand 时
+            //   ChooseStrike 的远程分支是【永远为假的死代码】，远程角色从不射击。
+            bool inStrikeRange = inBand || inRangedBand;
+            if (hasIntent && attackEnabled && inStrikeRange)
+            {
+                AttackData chosen = ChooseStrike(p, intent);
                 if (chosen != null && CanStartStrike(chosen) && Rand01() < profile.strikeChance)
-                { 
+                {
                     pendingStrike = chosen;
-                    Enter(CPUState.Strike); 
-                    return; 
+                    pendingIntent = intent;
+                    Enter(CPUState.Strike);
+                    return;
                 }
             }
 
-            if (p.SelfDamagePercent >= highDamageThreshold && p.Distance < safeDistance) 
-            { 
-                Enter(CPUState.Retreat); 
-                return; 
+            // ---- ③c 窗口在、但够不着 → 主动贴近 ----
+            //   Chase/Punish 的落地靠这一步：没有它，AI 在窗口期会掉到下面的通用兜底
+            //   （Idle/Hop），窗口白白浪费。只对非中性意图生效：中性本来就走 Approach。
+            if (hasIntent && attackEnabled && !inStrikeRange && intent != StrikeIntent.Neutral)
+            {
+                Enter(CPUState.Approach);
+                return;
             }
-            if (Time.time < strikeReadyTime) 
-            { 
-                Enter(CPUState.Idle); 
-                return; 
+
+            // ---- ④ 保底：自己伤害过高且对手没有便宜可占 → 撤离 ----
+            if (p.SelfDamagePercent >= highDamageThreshold && p.Distance < safeDistance)
+            {
+                Enter(CPUState.Retreat);
+                return;
+            }
+            if (Time.time < strikeReadyTime)
+            {
+                Enter(CPUState.Idle);
+                return;
             }
             // 如果对手在高处（平台上），尝试跳起追击；否则接近
             if (foe != null && foe.transform.position.y - me.transform.position.y > 0.6f && CanJumpNow())
@@ -519,6 +695,11 @@ namespace SuperSmashLike.Core
                 case CPUState.Hop:
                     TickHop(p);
                     break;
+
+                // 【新增 · D5】绕后：跳过对手，落到背后再出手
+                case CPUState.Flank:
+                    TickFlank(p);
+                    break;
             }
         }
 
@@ -564,6 +745,26 @@ namespace SuperSmashLike.Core
             // 缓存给 EnterState 用（进入钩子拿不到 Perception 参数）
             curDirection = dx > 0f ? 1f : -1f;
 
+            // 【新增 · D5】扩展感知（读招/绕后/压制/终结）—— 同样只记"观察到的事实"
+            bool oppShielding = foe.isShielding;
+            bool oppGrounded = foe.IsGrounded;
+            float oppDamagePercent = foe.CurrentDamage;
+            bool oppRecovering = ComputeOpponentRecovering(foe);
+
+            bool oppNearEdge = false;
+            if (safeBoundsResolved)
+            {
+                oppNearEdge = b.x <= safeMinX + edgeDangerMargin
+                           || b.x >= safeMaxX - edgeDangerMargin
+                           || b.y <= safeMinY + edgeDangerMargin;
+            }
+
+            // 我是否在对手【背后】：相对其朝向判断（同一 x 靠前 = 正面，靠后 = 背面）
+            // 【修正 10-16】原式两个分支写反了：对手朝右时其正面在 +x，我 x 更大 = 站在【正前方】，
+            //   原式却判成"背后" → canFlank 的 !IAmBehindOpponent 在正面接近时恒为 false，
+            //   绕后分支永远不可达（实测被动对手 + Expert 20s，flank 恒 0）。
+            bool iAmBehind = foe.isFacingRight ? a.x < b.x : a.x > b.x;
+
             return new Perception(
                 dist,
                 curDirection,
@@ -574,7 +775,38 @@ namespace SuperSmashLike.Core
                 me.IsGrounded,
                 me.CurrentDamage,
                 nearEdge,
-                towardCenterX);
+                towardCenterX,
+                oppRecovering,
+                oppShielding,
+                oppGrounded,
+                oppDamagePercent,
+                oppNearEdge,
+                iAmBehind);
+        }
+
+        // 【新增 · D5】读招：对手是否处于【攻击后摇】—— 我的惩罚窗口。
+        // 【重点】判据必须落在"判定段之后"，不能只看 isAttacking：
+        //   isAttacking 覆盖整段招式（前摇+判定+后摇），若只看它，
+        //   惩罚窗口会把对手的前摇也算进来 —— AI 会主动撞进对方判定里挨打。
+        // 【注意】normalizedTime 是【循环计数】（0..1..2..），必须取小数部分；
+        //   直接把整数当比例会得到"永远为真/永远为假"的静默错误。
+        // 【注意】层号做降级：本工程攻击态在第 1 层；若工程只有单层动画层，退回第 0 层。
+        private bool ComputeOpponentRecovering(FighterController f)
+        {
+            if (f == null) return false;
+            if (!f.isAttacking) return false;
+
+            AttackData atk = f.attackData;
+            if (atk == null || atk.TotalDuration <= 0.01f) return true;   // 数据缺失 → 保守视为可惩罚
+
+            if (f.animator == null) return false;
+
+            int layer = f.animator.layerCount > 1 ? 1 : 0;
+            float normalized = f.animator.GetCurrentAnimatorStateInfo(layer).normalizedTime % 1f;
+            if (normalized < 0f) normalized += 1f;
+
+            float recoverStart = (atk.startupTime + atk.activeTime) / atk.TotalDuration;
+            return normalized >= recoverStart;
         }
 
         // 攻击带判定（带滞回）
@@ -677,6 +909,17 @@ namespace SuperSmashLike.Core
                 me.MoveInput = new Vector2(-curDirection, 0f);
             }
 
+            // 【新增 · D5】绕后进入钩子：记录起点与侧向 → 起跳越顶 → 朝对手推进。
+            //   【注意】起跳只在进入钩子里做一次（写进 TickFlank 会变成每 tick 一跳）。
+            if (state == CPUState.Flank)
+            {
+                flankStartTime = Time.time;
+                flankSide0 = curDirection;
+                statFlank++;
+                if (CanJumpNow()) me.TryJump();
+                me.MoveInput = new Vector2(curDirection, 0f);
+            }
+
             // 【新增 · D2-③】边缘求生进入钩子：只【记录】起始时刻，不在这里起跳。
             //   贴地时朝台心走就够（这个舞台左右是 BlastZone 而非悬崖，地面能走回来）；
             //   只有"已经掉到台面以下"才需要跳 —— 那件事交给 TickHop 按需做，
@@ -698,7 +941,15 @@ namespace SuperSmashLike.Core
             // 【新增】招式数据随状态一起丢弃。留着会有一个隐患：
             //   下一次进 Strike 若因任何原因没走到 pendingStrike = chosen，
             //   BeginStrike 就会拿【上一次】的招式当这一招打（且总时长算错）。
-            if (state == CPUState.Strike) pendingStrike = null;
+            if (state == CPUState.Strike)
+            {
+                pendingStrike = null;
+                pendingIntent = StrikeIntent.Neutral;   // 【D5】意图随招式一起丢弃，防污染下一次
+            }
+
+            // 【新增 · D5】绕后结束 → 进入冷却：避免每次近身都跳越（抽搐式绕后）
+            if (state == CPUState.Flank)
+                flankCooldownUntil = Time.time + profile.attackCooldown;
 
             if (state != CPUState.Guard) return;
             pendingShieldOff = true;      // 先记意图
@@ -734,6 +985,17 @@ namespace SuperSmashLike.Core
             strikeStartTime = Time.time;
             strikeReadyTime = Time.time + atk.TotalDuration + profile.attackCooldown;
 
+            // 【新增 · D5】行为计数：难度行为差的无头取证来源
+            //   （频率差异看 decisionInterval/attackCooldown，行为差异就看这 6 个计数）
+            switch (pendingIntent)
+            {
+                case StrikeIntent.Chase:    statChase++;    break;
+                case StrikeIntent.Punish:   statPunish++;   break;
+                case StrikeIntent.Pressure: statPressure++; break;
+                default:                    statNeutral++;  break;
+            }
+            if (lastPickWasFinisher) statFinisher++;
+
             if (atk == myRangedSpecial) me.TrySpecial(atk);
             else me.TryAttack(atk);
 
@@ -754,14 +1016,107 @@ namespace SuperSmashLike.Core
             return true;
         }
 
-        // 选招：远程角色在射程外用投射物技，贴身则回落 jab
+        // 选招：把"意图"翻译成 FighterData 里的具体槽位（D5 起从 1 招扩到整张槽位表）
+        // 【重点】本函数【不做战略判断】：要不要打、打谁、为什么打，全部由 Decide 决定后
+        //   以 intent 参数带进来；这里只回答"这个意图该用哪一招"。
+        //   战略/选招分离后，改难度只动 Decide + Profile，换招式表只动这里，互不牵连。
         // 【重点】AttackData 是【引用类型】（FighterData.cs:163 class 而非 struct），
-        //   所以比较用 == 是比引用，不是比值 —— 恰好是我们要的"是不是同一招"。
-        private AttackData ChooseStrike(Perception p)
+        //   所以比较用 == 是比引用 —— 恰好是我们要的"是不是同一招"。
+        private AttackData ChooseStrike(Perception p, StrikeIntent intent)
         {
-            if (myRangedSpecial != null && p.Distance >= rangedFireMinDistance) return myRangedSpecial;
-            AttackData jab = me.fighterData.jab1;
-            return jab != null ? jab : myRangedSpecial;   // 连 jab1 都没有就退回投射物技
+            FighterData fd = me.fighterData;
+            if (fd == null) return null;
+
+            lastPickWasFinisher = false;
+
+            // ---- ① 远程：射程外优先投射物技（D2-⑤ 行为保持不变）----
+            if (myRangedSpecial != null && p.Distance >= rangedFireMinDistance)
+                return myRangedSpecial;
+
+            // ---- ② 空中：对空用上挑型、对地用下砸型、平飞用前 A ----
+            if (!me.IsGrounded)
+            {
+                if (p.HeightDifference > 0.9f && fd.aerialUp != null) return fd.aerialUp;
+                if (p.HeightDifference < -0.6f && fd.aerialDown != null) return fd.aerialDown;
+                if (fd.aerialForward != null) return fd.aerialForward;
+                if (fd.aerialNeutral != null) return fd.aerialNeutral;
+            }
+            else if (p.HeightDifference > 0.9f)
+            {
+                // 地面但对手明显在上方（站在平台上）→ 用上挑打浮空对手
+                if (fd.tiltUp != null) return fd.tiltUp;
+                if (fd.smashUp != null) return fd.smashUp;
+            }
+
+            // ---- ③ 地面：终结判定优先 ----
+            //   对手伤害已进必杀区间 + 档位有终结意识 → 换击退最强的横 smash 收头。
+            //   低难度 finisherBias=0 → 永远不触发，只会常规蹭伤害（= 收不掉人）。
+            bool finisher = p.OpponentDamagePercent >= finisherDamagePercent
+                            && Rand01() < profile.finisherBias;
+            lastPickWasFinisher = finisher;
+            if (finisher && fd.smashSide != null) return fd.smashSide;
+
+            // ---- ④ 按意图挑招 ----
+            switch (intent)
+            {
+                case StrikeIntent.Pressure: return PickPressure(fd);
+                case StrikeIntent.Punish:   return PickHeaviest(fd);
+                case StrikeIntent.Chase:    return PickChase(fd, p);
+                default:                    return PickNeutral(fd);
+            }
+        }
+
+        // 压制：对手举盾 → 破盾值最高者（盾破 = 长硬直 = 免费一套）
+        private AttackData PickPressure(FighterData fd)
+            => Fallback(Best(new[] { fd.smashSide, fd.smashUp, fd.smashDown, fd.tiltSide, fd.tiltDown, fd.jab1 },
+                             a => a.shieldDamage), fd);
+
+        // 惩罚：对手在硬直/后摇里，必中 → 直接用伤害最高的地面招
+        private AttackData PickHeaviest(FighterData fd)
+            => Fallback(Best(new[] { fd.smashSide, fd.smashUp, fd.smashDown, fd.tiltSide, fd.tiltUp, fd.tiltDown, fd.jab1 },
+                             a => a.damage), fd);
+
+        // 追击：对手被击飞时多在空中 → 优先能覆盖上方的招；对手落地才用常规重招
+        private AttackData PickChase(FighterData fd, Perception p)
+        {
+            if (p.HeightDifference > 0.6f || !p.OpponentGrounded)
+                return Fallback(Best(new[] { fd.aerialForward, fd.aerialUp, fd.tiltUp, fd.smashUp, fd.jab1 },
+                                     a => a.damage), fd);
+            return PickHeaviest(fd);
+        }
+
+        // 常规对拼：轻快起手（保持 D2 手感：jab1 → 横 tilt → 下 tilt 小跳）
+        private AttackData PickNeutral(FighterData fd)
+        {
+            if (fd.jab1 != null) return fd.jab1;
+            if (fd.tiltSide != null) return fd.tiltSide;
+            if (fd.tiltDown != null) return fd.tiltDown;
+            return Fallback(null, fd);
+        }
+
+        // 在候选槽位里挑"打分"最高的一招；全部为 null 时返回 null
+        // 【注意】显式钉住"第一个非空候选也要被选中"（best == null 时无条件接管），
+        //   否则打分若为负（理论上不该有），会出现"有招却选出 null"。
+        private AttackData Best(AttackData[] candidates, System.Func<AttackData, float> score)
+        {
+            AttackData best = null;
+            float bestScore = float.NegativeInfinity;
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                AttackData atk = candidates[i];
+                if (atk == null) continue;
+                float s = score(atk);
+                if (best == null || s > bestScore) { bestScore = s; best = atk; }
+            }
+            return best;
+        }
+
+        // 兜底链：选中的招 → jab1 → 投射物技（保证任何角色都有招可出）
+        private AttackData Fallback(AttackData picked, FighterData fd)
+        {
+            if (picked != null) return picked;
+            if (fd != null && fd.jab1 != null) return fd.jab1;
+            return myRangedSpecial;
         }
 
         // 跳跃预算自检
@@ -879,6 +1234,49 @@ namespace SuperSmashLike.Core
             me.MoveInput = new Vector2(p.SelfTowardCenterX, 0f);
         }
 
+        // 【新增 · D5】绕后行为
+        //   设计：跳越过对手 → 落到对手【背后】→ 回身打。
+        //   【重点】不缓存"是否已越过"这种可推导状态：直接比较当前侧向与发起侧向 ——
+        //   多缓存一份真源就是本文件反复警告的"静默打架"隐患。
+        private void TickFlank(Perception p)
+        {
+            // ① 自己靠台边危险 → 立刻放弃绕后回台心（绕后是进攻，不能自杀）
+            if (me.IsGrounded && !IsSafeFromEdge()) { Enter(CPUState.Approach); return; }
+
+            // ② 超时兜底：绝不让 Flank 变成永久状态（与 hopMaxDuration 同一思路）
+            if (Time.time - flankStartTime >= flankMaxDuration) { Enter(CPUState.Approach); return; }
+
+            // ③ 侧向翻转 = 已越过对手 → 空中出手（前 A 覆盖下坠时的打击面）
+            bool crossed = p.Direction != flankSide0;
+            if (crossed)
+            {
+                if (!me.IsGrounded)
+                {
+                    AttackData atk = me.fighterData != null ? me.fighterData.aerialForward : null;
+                    if (atk != null && CanStartStrike(atk))
+                    {
+                        pendingStrike = atk;
+                        pendingIntent = StrikeIntent.Neutral;
+                        Enter(CPUState.Strike);
+                        return;
+                    }
+                }
+                // 落地了还没打出去 → 交回常规接近（下一 tick 会重新决策）
+                Enter(CPUState.Approach);
+                return;
+            }
+
+            // ④ 还没越过且在下落 → 补第二跳抢高度（否则跳不过对手、白绕一次）
+            if (!me.IsGrounded && me.velocity.y < 0f
+                && me.transform.position.y <= foe.transform.position.y + 0.5f
+                && CanJumpNow())
+            {
+                me.TryJump();
+            }
+
+            me.MoveInput = new Vector2(p.Direction, 0f);
+        }
+
         // 【重点】X 和 Y 必须是【与】关系，不能是【或】。
         //   写成 `if (xSafe) return true; if (ySafe) return true;` 的话，
         //   站台上 y≈0 而 safeMinY≈-10、edgeSafeMargin=7 → 0 > -3 恒成立
@@ -902,23 +1300,40 @@ namespace SuperSmashLike.Core
 
         #region 5. 角色类型 / 舞台边界解析
 
-        // 【新增 · D2-⑤】判定自己是远程还是近战角色
-        // 【重点】引擎判定"这招是不是投射物"的【唯一】依据是 projectilePrefab
-        //   （FighterController.cs:1031 就是拿它判分支），没有 isRanged 这类 bool。
-        //   所以 AI 必须跟着引擎用同一个判据，否则会出现"AI 以为是远程、
-        //   引擎却走了近战分支"的对不上。
+        // 【新增 · D2-⑤；判据重构 · M6-D5 补】判定自己是远程还是近战角色
+        // 【重点】判据 = FighterData.aiArchetype（显式配置），【不再】用"有没有弹道"反推。
+        //   旧判据（specialNeutral/specialSide 带 projectilePrefab）在 M6 六个角色上【全部为真】，
+        //   后果是"六个角色全被判远程、AI 一律在 4.5 距离放风筝、从不贴身"，
+        //   D2-⑤ 的"Archer 远程 / Barbarian 近战"差异化整体失效 —— 数据无法表达设计意图。
+        // 【重点】"哪一招才是投射物"仍然必须按 projectilePrefab 找：引擎的投射物分支
+        //   （FighterController 里按 projectilePrefab 判）用的就是这个判据；
+        //   但它【只在 Ranged 定位下启用】—— Melee 角色即使数据里挂着弹道，AI 也不会拿去远程放。
         private void ResolveLoadout()
         {
             myRangedSpecial = null;
             isRangedFighter = false;
             if (me == null || me.fighterData == null) return;
 
+            if (me.fighterData.aiArchetype != AIArchetype.Ranged) return;   // 近战定位：到此为止
+
             if (me.fighterData.specialNeutral != null && me.fighterData.specialNeutral.projectilePrefab != null)
                 myRangedSpecial = me.fighterData.specialNeutral;
             else if (me.fighterData.specialSide != null && me.fighterData.specialSide.projectilePrefab != null)
                 myRangedSpecial = me.fighterData.specialSide;
 
-            isRangedFighter = myRangedSpecial != null;
+            // 【注意】定位写了 Ranged 却没挂任何弹道 = 数据配错。此时若把 isRangedFighter 置 true：
+            //   InRangedBand 会因 myRangedSpecial==null 恒 false（永远进不了射击带），
+            //   而 Approach 又会因 isRangedFighter 在 4.5 距离停步 → 变成一个"站着挨打、永不出招"的沙包。
+            //   故【降级为近战行为】+ 告警，保证 AI 至少会打人。
+            if (myRangedSpecial == null)
+            {
+                if (SmashDebug.IsOn(DebugChannel.State))
+                    SmashDebug.LogWarn(DebugChannel.State,
+                        $"CPUPlayer 配置异常 | {me.name} 的 aiArchetype=Ranged 但没找到带弹道的必杀技 | 已降级为近战行为");
+                return;
+            }
+
+            isRangedFighter = true;
 
             // 【注意·陷阱】specialUp（上B）绝对不能拿来做边缘求生：
             //   DoSpecialUp 的落点是 transform.position + (0, specialUpDistance, 0)

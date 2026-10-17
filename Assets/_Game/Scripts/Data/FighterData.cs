@@ -26,6 +26,8 @@ namespace SuperSmashLike.Core
         [Header("Identity")]
         public string fighterName = "New Fighter";   // 角色显示名称
         public Sprite portraitIcon;                  // 角色头像（选人界面用）
+        [Tooltip("选人确认时整实例换将用的斗士预制体（Fighter_*）。null = 无法换将，保持现有斗士")]
+        public GameObject fighterPrefab;             // 【M6-D1】CharacterSelectPanel 确认 → FighterSwapService 替换场景斗士
 
         #endregion
 
@@ -50,6 +52,34 @@ namespace SuperSmashLike.Core
         [Header("Visual")]
         public WeightClass weightClass = WeightClass.Medium;  // 体重分类（当前仅 Editor 显示用）
         public Color uiColor = Color.white;                   // UI 主题色
+
+        #endregion
+
+        #region 3.5 防御（护盾）
+
+        // 【M6-D2】破盾额度是全局机制（GameSettings.shieldMaxHP），"盾有多耐打"则是角色属性：
+        //   Paladin（圣骑士）盾耐略高 = 它的防御特色；其余角色保持 1.0 → 行为与本字段出现前完全一致。
+        // 【注意】改这里必须同步 FighterController.ResolveMaxShieldHP 与 ShieldVisual 的比例基准，
+        //   否则护盾 UI 的"满盾"基准会对不上（盾环永远填不满 / 提前耗尽）。
+        [Header("Defense")]
+        [Tooltip("护盾耐久倍率（× GameSettings.shieldMaxHP）。1=标准；圣骑士 1.35=盾耐略高")]
+        public float shieldMaxHPMultiplier = 1f;
+
+        #endregion
+
+        #region 3.6 AI 定位（【M6-D5 补】）
+
+        // 【M6-D5 补】AI 定位与"招式带不带弹道"【解耦】。
+        // 【背景】此前 AI 用"specialNeutral/specialSide 带不带 projectilePrefab"反推远近，
+        //   但 M6 六个角色的特殊技【全部】带弹道 → 六个角色【全被判为远程】，
+        //   AI 一律在 4.5 距离放风筝、从不贴身 → D2-⑤ 的
+        //   "Archer 远程 / Barbarian 近战"差异化整体失效（数据无法表达设计意图）。
+        // 【约定】CPU 只认本字段；"哪一招是投射物"仍由 projectilePrefab 判定
+        //   （必须与引擎的投射物分支同判据），但【仅对 Ranged 定位生效】。
+        // 【注意】本字段只影响 CPU 行为，不影响玩家手动操作该角色。
+        [Header("AI")]
+        [Tooltip("AI 定位：Melee=CPU 主动贴身近战；Ranged=CPU 保持距离放风筝")]
+        public AIArchetype aiArchetype = AIArchetype.Melee;
 
         #endregion
 
@@ -151,6 +181,15 @@ namespace SuperSmashLike.Core
         Medium,      // 中量级
         Heavy,       // 重量级
         SuperHeavy,  // 超重量级
+    }
+
+    // AI 定位（【M6-D5 补】决定 CPU 是贴身近战还是保持距离放风筝）
+    // 【重点】必须与"招式带不带弹道"解耦：M6 六个角色的特殊技全都挂了弹道，
+    //   若用弹道反推，六个角色会被【全部判成远程】，远近差异化直接失效。
+    public enum AIArchetype
+    {
+        Melee,   // 近战：CPU 主动贴上去打
+        Ranged,  // 远程：CPU 维持距离放风筝
     }
 
     // ============================================================

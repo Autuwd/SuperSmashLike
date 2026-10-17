@@ -5750,6 +5750,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4d5e8b8a4dee42d41aa834cab9ab428f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  rowStatusTexts:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   controller: {fileID: 83892198}
   boxOverlay: {fileID: 83892197}
   framePanel: {fileID: 420360161}
