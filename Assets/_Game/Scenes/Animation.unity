@@ -502,7 +502,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7541988065048707383, guid: 18731bdda4b85f94ba8136d86b02f0bf, type: 3}
       propertyPath: m_Name
-      value: Fighter_P1
+      value: Fighter_Knight
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

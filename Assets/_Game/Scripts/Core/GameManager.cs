@@ -65,6 +65,11 @@ namespace SuperSmashLike.Core
             set => baseTimeScale = Mathf.Clamp(value, 0f, 10f);
         }
 
+        // 【做什么】外部冻结标记：训练菜单打开等非 Paused 状态的冻结置位，ApplyTimeScale 一律尊重
+        // 【为什么】时标单一所有权：慢动作 / Hitstop 结束等路径都必须走 ApplyTimeScale，
+        //   否则会把菜单要求的 0 覆盖回 BaseTimeScale，出现菜单开着游戏却恢复流动的问题
+        public bool externalFreeze;
+
         // 当前游戏阶段，其他模块通过这个属性来判断能做什么
         public GameState CurrentGameState { get; private set; }
 
@@ -126,7 +131,7 @@ namespace SuperSmashLike.Core
 
         public void ApplyTimeScale()
         {
-            if (CurrentGameState == GameState.Paused)
+            if (CurrentGameState == GameState.Paused || externalFreeze)
             {
                 Time.timeScale = 0f;
                 return;
@@ -157,9 +162,14 @@ namespace SuperSmashLike.Core
             SwitchState(GameState.Training);
             if (StageManager.Instance != null)
                 StageManager.Instance.LoadSelectedStage();
+
+            // M6-D1：训练开局同样按选人结果重建斗士（训练不走 MatchManager 的 Battle 状态分支）
+            FighterSpawnService.SpawnForCurrentMatch();
+
             if (MatchManager.Instance != null)
             {
                 MatchManager.Instance.ResetMatchData();
+                MatchManager.Instance.RebindAllFighterEvents();   // 新实例补订阅（Battle 路径由状态分支尾部覆盖）
                 MatchManager.Instance.StartMatch();
             }
         }
@@ -187,6 +197,23 @@ namespace SuperSmashLike.Core
                 SwitchState(GameState.Battle);
                 Time.timeScale = 1f;
             }
+        }
+
+        // 【做什么】输入层统一的"暂停/恢复切换"入口（问题①修复 2026-10-17）
+        // 【为什么必须集中】Esc 会经由多条通道同帧抵达：
+        //   ① InputManager.OnPauseCtx（Pause 动作，KeyboardP1/P2 两个实例各收一次）
+        //   ② KeyHintBar.HandleEsc（旧版 Input.GetKeyDown 兜底）
+        //   此前各通道各自维护静态冷却、互不知情 → 同一帧"先暂停、再恢复"，净零。
+        //   现在收敛为本类唯一的静态冷却：一次按键周期只允许切换一次。
+        private static float s_lastPauseToggleTime = -10f;
+
+        public void TogglePause()
+        {
+            if (Time.unscaledTime - s_lastPauseToggleTime < 0.2f) return;
+            s_lastPauseToggleTime = Time.unscaledTime;
+
+            if (CurrentGameState == GameState.Battle) PauseGame();
+            else if (CurrentGameState == GameState.Paused) ResumeGame();
         }
 
         // FighterController 在 Start() 中调用此方法注册自己

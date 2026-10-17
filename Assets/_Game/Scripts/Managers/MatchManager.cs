@@ -367,6 +367,15 @@ namespace SuperSmashLike.Managers
             _killedHandlers[f] = newKill;
         }
 
+        // 【做什么】对当前所有活跃斗士重绑事件（训练流程补调 —— 训练不走 Battle 状态分支的尾部重绑）
+        public void RebindAllFighterEvents()
+        {
+            var players = GameManager.Instance != null ? GameManager.Instance.ActivePlayers : null;
+            if (players == null) return;
+
+            foreach (var f in players) RebindFighterEvents(f);
+        }
+
         #endregion
 
         #region 8. HUD
@@ -515,6 +524,11 @@ namespace SuperSmashLike.Managers
                 // M4-D2：开赛前先加载所选舞台（回填出生点 / 相机边界）
                 if (StageManager.Instance != null) StageManager.Instance.LoadSelectedStage();
                 settings = GameManager.Instance.gameSettings;   // 规则面板可能刚改过，重读引用
+
+                // M6-D1：按选人结果重建斗士（清场 → 按 human/CPU 数量逐槽生成）
+                // 【顺序】必须先于 ResetMatchData —— 后者依赖 ActivePlayers 已就位
+                FighterSpawnService.SpawnForCurrentMatch();
+
                 ResetMatchData();                                // 按新规则复位命数/HUD/位置
                 BindPortraits();                                 // 绑定各玩家头像到菱形 HUD
                 StartMatch();
@@ -641,6 +655,10 @@ namespace SuperSmashLike.Managers
             _registeredFighters.Clear();
             foreach (var f in GameManager.Instance.ActivePlayers)
                 if (f != null) _registeredFighters.Add(f);
+
+            // 5.5 清理死键：被销毁旧斗士的委托缓存（M6-D1 开局销毁重建会留下悬空键，不清会逐局累积）
+            foreach (var dead in _damagedHandlers.Keys.Where(k => k == null).ToList()) _damagedHandlers.Remove(dead);
+            foreach (var dead in _killedHandlers.Keys.Where(k => k == null).ToList()) _killedHandlers.Remove(dead);
 
             // 6. 清空 KO 统计
             for (int i = 0; i < _koCounts.Length; i++) _koCounts[i] = 0;

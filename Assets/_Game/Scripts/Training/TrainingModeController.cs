@@ -188,8 +188,13 @@ namespace SuperSmashLike.Training
             var im = player1 != null ? player1.GetComponent<SuperSmashLike.InputSystem.InputManager>() : null;
             if (im != null) im.enabled = !open;
 
+            // 打开菜单 = 置外部冻结标记 + 走统一时标入口（时标单一所有权）：
+            // 慢动作 / Hitstop 结束等非 Paused 就写 BaseTimeScale 的路径都不得覆盖菜单的 0
             if (GameManager.Instance != null)
-                Time.timeScale = open ? 0f : GameManager.Instance.BaseTimeScale;
+            {
+                GameManager.Instance.externalFreeze = open;
+                GameManager.Instance.ApplyTimeScale();
+            }
 
             RefreshMenu();
         }
@@ -224,7 +229,9 @@ namespace SuperSmashLike.Training
             var cpu = player2.GetComponent<CPUPlayer>();
             if (cpu != null)
             {
-                cpu.enabled = enabled;
+                // 【关键】组件保持启用：冻结交给 SetAiFrozen（冻结分支每帧写零 MoveInput）。
+                // 直接禁用组件会让清输入逻辑停跑，残留方向持续驱动斗士移动（木桩不静止）
+                cpu.enabled = true;
                 cpu.SetAiFrozen(!enabled);
                 cpu.SetAttackEnabled(enabled);
                 if (!enabled)
@@ -238,10 +245,14 @@ namespace SuperSmashLike.Training
 
         private void OnEnable()
         {
-            if (GameManager.Instance != null && GameManager.Instance.CurrentGameState == GameState.Training)
+            if (GameManager.Instance != null)
             {
-                GameManager.Instance.BaseTimeScale = 1f;
-                GameManager.Instance.ApplyTimeScale();
+                GameManager.Instance.externalFreeze = false;   // 防御：残留外部冻结标记随组件重新启用清除
+                if (GameManager.Instance.CurrentGameState == GameState.Training)
+                {
+                    GameManager.Instance.BaseTimeScale = 1f;
+                    GameManager.Instance.ApplyTimeScale();
+                }
             }
             _slowMoActive = false;
             _menuOpen = false;

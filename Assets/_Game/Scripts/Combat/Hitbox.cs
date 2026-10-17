@@ -147,14 +147,8 @@ namespace SuperSmashLike.Combat
                 yield break;
             }
 
-            if (GameManager.Instance.CurrentGameState != GameState.Paused)
-            {
-                Time.timeScale = GameManager.Instance.BaseTimeScale;
-            }
-            else
-            {
-                Time.timeScale = restoreTimeScale;
-            }
+            // 统一走 ApplyTimeScale：尊重 Paused / 外部冻结（训练菜单），不再直写 BaseTimeScale
+            GameManager.Instance.ApplyTimeScale();
         }
 
         #endregion

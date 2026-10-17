@@ -9,12 +9,12 @@ using UnityEngine;
 // 使用：菜单 SuperSmashLike → 42. Setup Paladin (M6-D2)
 //      或 -batchmode -executeMethod PaladinSetupWizard.Run
 //
-// 五个步骤（可重复执行，幂等：每次从干净的 FD_Knight / Fighter_P1 重建）：
+// 五个步骤（可重复执行，幂等：每次从干净的 FD_Knight / Fighter_Knight 重建）：
 //   ① FD_Paladin.asset     ：105 / 4.8 / 7.5 / 5.5 / 跳 11 —— 均衡型"剑盾"斗士；
 //                            盾耐倍率 1.35（盾耐略高）；特攻走"盾击"：对盾伤害 ×1.6
 //   ② P4.asset             ：复制 P1.asset 生成圣骑士骨架 Avatar
 //   ③ 资源副本             ：森林守护者模型 + 骑士盾（取自 PolygonDungeon）+ 细刃剑 → Assets/_Game/Art/
-//   ④ Fighter_Paladin.prefab：复制 Fighter_P1 结构 → 换模型 / 左手盾 / 右手剑 / 头像 / 数据 / 判定框
+//   ④ Fighter_Paladin.prefab：复制 Fighter_Knight 结构 → 换模型 / 左手盾 / 右手剑 / 头像 / 数据 / 判定框
 //   ⑤ GS_Default 注册 + 回填各 FD 的 fighterPrefab 映射 + 自校验
 //
 // 【设计依据】Docs/12_逐日实施清单.md §11.2 角色差异化参数模板：
@@ -40,8 +40,8 @@ public static class PaladinSetupWizard
     private const string ShieldSrcPath  = "Assets/Synty/PolygonDungeon/Prefabs/Weapons/SM_Wep_Shield_Heater_01.prefab";
     private const string ShieldDstPath  = "Assets/_Game/Art/Weapon/SM_Wep_Shield_Heater_01.prefab";
 
-    private const string P1PrefabPath     = "Assets/_Game/Prefabs/Fighters/Fighter_P1.prefab";
-    private const string P2PrefabPath     = "Assets/_Game/Prefabs/Fighters/Fighter_P2.prefab";
+    private const string KnightPrefabPath     = "Assets/_Game/Prefabs/Fighters/Fighter_Knight.prefab";
+    private const string BarbarianPrefabPath  = "Assets/_Game/Prefabs/Fighters/Fighter_Barbarian.prefab";
     private const string RoguePrefabPath  = "Assets/_Game/Prefabs/Fighters/Fighter_Rogue.prefab";
     private const string PaladinPrefabPath= "Assets/_Game/Prefabs/Fighters/Fighter_Paladin.prefab";
     private const string GsPath           = "Assets/_Game/ScriptableObjects/GameModes/GS_Default.asset";
@@ -184,7 +184,7 @@ public static class PaladinSetupWizard
     }
 
     // ============================================================
-    // ④ 斗士预制体：Fighter_Paladin.prefab（以 Fighter_P1 为模板）
+    // ④ 斗士预制体：Fighter_Paladin.prefab（以 Fighter_Knight 为模板）
     // ============================================================
     private static GameObject Step4_BuildFighterPrefab(FighterData paladin, Avatar avatar,
                                                        GameObject modelPrefab, GameObject swordPrefab,
@@ -199,8 +199,8 @@ public static class PaladinSetupWizard
         if (AssetDatabase.LoadAssetAtPath<GameObject>(PaladinPrefabPath) != null)
             AssetDatabase.DeleteAsset(PaladinPrefabPath);
 
-        GameObject root = PrefabUtility.LoadPrefabContents(P1PrefabPath);
-        if (root == null) { Debug.LogError($"[Paladin] ④ 无法加载模板 {P1PrefabPath}"); return null; }
+        GameObject root = PrefabUtility.LoadPrefabContents(KnightPrefabPath);
+        if (root == null) { Debug.LogError($"[Paladin] ④ 无法加载模板 {KnightPrefabPath}"); return null; }
 
         try
         {
@@ -311,8 +311,8 @@ public static class PaladinSetupWizard
         EditorUtility.SetDirty(gs);
 
         // 回填 fighterPrefab 映射（换将服务依赖它）
-        SetFighterPrefab(FdKnightPath,    P1PrefabPath);
-        SetFighterPrefab(FdBarbarianPath, P2PrefabPath);
+        SetFighterPrefab(FdKnightPath,    KnightPrefabPath);
+        SetFighterPrefab(FdBarbarianPath, BarbarianPrefabPath);
         SetFighterPrefab(FdRoguePath,     RoguePrefabPath);
         SetFighterPrefab(FdPaladinPath,   PaladinPrefabPath);
 

@@ -42,6 +42,13 @@ namespace SuperSmashLike.UI
         private readonly int[] _highlightIndex = new int[4] { 0, 0, 0, 0 };
         private readonly bool[] _confirmed = new bool[4] { false, false, false, false };
         private readonly bool[] _active = new bool[4] { false, false, false, false };
+        private readonly bool[] _isCpu = new bool[4] { false, false, false, false };
+
+        // 【问题②修复 2026-10-17】本局 CPU 总数（CPU 标签编号用：1 个="CPU"，多个="CPU1/CPU2"）
+        private int _cpuTotal;
+
+        // 手柄归属槽位：单人=0(P1)，多人=1(P2)
+        private int _gamepadPid = 1;
 
         private readonly List<GameObject> _cards = new List<GameObject>();
         private readonly List<FighterData> _fighterList = new List<FighterData>();
@@ -103,7 +110,7 @@ namespace SuperSmashLike.UI
             // 按键与战斗键一一对应（见 Controls.inputactions）
             HandlePlayerInput(0);  // P1: WASD 移动 + J=攻击(确认) K=必杀(取消) L=防御(随机) Space=跳跃(出招表)
             HandlePlayerInput(1);  // P2: ↑←↓→ 移动 + 小键盘1=攻击(确认) 2=必杀(取消) 3=防御(随机) 0=跳跃(出招表)
-            HandleGamepadInput();  // 手柄 = P2: 摇杆/十字键 + A=攻击(确认) X=必杀(出招表) LT=防御(随机) B=取消(返回标题)
+            HandleGamepadInput();  // 手柄: 单人=P1 / 多人=P2 + A=攻击(确认) X=必杀(出招表) LT=防御(随机) B=取消(返回标题)
 
             UpdateStartButton();
         }
@@ -170,13 +177,52 @@ namespace SuperSmashLike.UI
                 _highlightIndex[i] = 0;
                 _confirmed[i] = false;
                 _active[i] = false;
+                _isCpu[i] = false;
             }
 
-            // 默认激活 P1 + P2
-            _active[0] = true;
-            _active[1] = true;
-            _active[2] = false;
-            _active[3] = false;
+            // 【问题②修复 2026-10-17】按菜单选择的玩家数/CPU数决定"框数"：
+            //   槽位 0..playerCount-1 = 人类；紧随其后的 aiCount 个槽位 = CPU。
+            int humanCount = 1;
+            int cpuCount = 0;
+            if (GameManager.Instance != null)
+            {
+                if (GameManager.Instance.trainingRequested)
+                {
+                    // 【训练流程】固定 1v1：P1 人类 + P2 CPU（不沿用普通模式人数，避免额外玩家）
+                    humanCount = 1;
+                    cpuCount = 1;
+                }
+                else
+                {
+                    humanCount = Mathf.Clamp(GameManager.Instance.playerCount, 1, 4);
+                    cpuCount = Mathf.Clamp(GameManager.Instance.aiCount, 0, 4 - humanCount);
+                }
+            }
+
+            _cpuTotal = cpuCount;
+            for (int i = 0; i < 4; i++)
+            {
+                _active[i] = i < humanCount + cpuCount;
+                _isCpu[i] = i >= humanCount && i < humanCount + cpuCount;
+            }
+
+            // 手柄归属：单人时手柄操作 P1；多人时手柄操作 P2（键盘 P1/P2 区之外的补充设备）
+            _gamepadPid = (humanCount <= 1) ? 0 : 1;
+
+            // 自动槽（CPU + 无输入设备的 P3/P4 人类）：随机选角 + 自动确认（结果写入 GameSettings）
+            if (_fighterList.Count > 0)
+            {
+                GameSettings gs = GameManager.Instance != null ? GameManager.Instance.gameSettings : null;
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!_active[i] || !IsAutoSlot(i)) continue;
+
+                    _highlightIndex[i] = Random.Range(0, _fighterList.Count);
+                    _confirmed[i] = true;
+                    if (gs != null)
+                        gs.SetSelection(i, _fighterList[_highlightIndex[i]]);
+                }
+            }
 
             if (startButton != null)
                 startButton.gameObject.SetActive(false);
@@ -192,7 +238,7 @@ namespace SuperSmashLike.UI
         private void HandlePlayerInput(int pid)
         {
             if (pid < 0 || pid > 1) return;
-            if (!_active[pid]) return;
+            if (!IsOperableSlot(pid)) return;   // 【问题②】CPU/自动槽不接受输入
 
             KeyCode up, down, left, right, confirm, cancel, reroll, moves;
             if (pid == 0)
@@ -291,8 +337,8 @@ namespace SuperSmashLike.UI
         {
             var gp = Gamepad.current;
             if (gp == null) return;
-            const int pid = 1;                       // 手柄 = P2
-            if (!_active[pid]) return;
+            int pid = _gamepadPid;                   // 手柄归属：单人=P1，多人=P2
+            if (!IsOperableSlot(pid)) return;
 
             // 出招表打开时：方向键归出招表切换 Tab；B=返回，关闭出招表。
             if (IsMoveListOpen)
@@ -398,8 +444,7 @@ namespace SuperSmashLike.UI
             {
                 GameSettings s = GameManager.Instance.gameSettings;
                 s.SetSelection(pid, _fighterList[idx]);
-                // 【M6-D1】写入选择后立即换将：按所选角色的 fighterPrefab 替换场景中的斗士实例
-                FighterSwapService.ApplySelection(pid);
+                // 【问题④修复 2026-10-17】不再立即换将：角色实例统一由 FighterSpawnService 在战斗开始时生成
             }
 
             _confirmed[pid] = true;
@@ -427,7 +472,7 @@ namespace SuperSmashLike.UI
             // 如果当前有玩家处于已确认状态 → 优先取消确认，而不是直接返回标题（符合直觉）
             for (int p = 0; p < 4; p++)
             {
-                if (_active[p] && _confirmed[p])
+                if (_active[p] && _confirmed[p] && IsOperableSlot(p))   // 【问题②】只取消人类槽确认，跳过自动槽
                 {
                     CancelPlayer(p);
                     return;
@@ -451,6 +496,66 @@ namespace SuperSmashLike.UI
                 }
             }
             return hasActive;
+        }
+
+        #endregion
+
+        #region Participants / Labels（问题②：人数框数 + P1/P2/CPU 标识）
+
+        // 可操作槽位：前两个槽位中的人类玩家（CPU 槽与 P3/P4 无输入设备 → 自动槽，不接受输入）
+        private bool IsOperableSlot(int i) => _active[i] && !_isCpu[i] && i <= 1;
+
+        // 自动槽：CPU 槽 + 槽位 > 1 的人类（无输入设备 → 随机选角 + 自动确认）
+        private bool IsAutoSlot(int i) => _isCpu[i] || i > 1;
+
+        // 槽位标签颜色：P1 红 / P2 蓝 / P3 黄 / P4 绿 / CPU 灰白
+        private static readonly Color[] SlotLabelColors =
+        {
+            new Color(1f, 0.35f, 0.35f),
+            new Color(0.4f, 0.62f, 1f),
+            new Color(1f, 0.82f, 0.3f),
+            new Color(0.45f, 0.88f, 0.45f),
+        };
+        private static readonly Color CpuLabelColor = new Color(0.78f, 0.78f, 0.82f);
+
+        // 运行时在预览框顶部生成玩家标识标签（克隆 nameText，按名查找防重复创建）
+        private void RefreshPlayerLabel(GameObject panel, TMP_Text nameText, int pid)
+        {
+            if (panel == null) return;
+
+            TMP_Text label = null;
+            Transform found = panel.transform.Find("PlayerLabel");
+            if (found != null) label = found.GetComponent<TMP_Text>();
+
+            if (label == null)
+            {
+                if (nameText == null) return;
+                label = Instantiate(nameText, panel.transform);
+                label.gameObject.name = "PlayerLabel";
+                RectTransform rt = label.rectTransform;
+                rt.anchorMin = new Vector2(0.5f, 1f);
+                rt.anchorMax = new Vector2(0.5f, 1f);
+                rt.pivot = new Vector2(0.5f, 0f);
+                rt.anchoredPosition = new Vector2(0f, 8f);
+                label.raycastTarget = false;
+            }
+
+            label.text = GetSlotLabel(pid);
+            label.color = _isCpu[pid] ? CpuLabelColor : SlotLabelColors[Mathf.Clamp(pid, 0, SlotLabelColors.Length - 1)];
+        }
+
+        // 槽位标签：人类=P1..P4；CPU=单 CPU 显示"CPU"，多 CPU 显示"CPU1/CPU2/…"
+        private string GetSlotLabel(int pid)
+        {
+            if (!_isCpu[pid]) return $"P{pid + 1}";
+            if (_cpuTotal <= 1) return "CPU";
+
+            int n = 0;
+            for (int i = 0; i <= pid && i < 4; i++)
+            {
+                if (_isCpu[i]) n++;
+            }
+            return $"CPU{Mathf.Max(1, n)}";
         }
 
         #endregion
@@ -499,6 +604,7 @@ namespace SuperSmashLike.UI
             }
 
             panel.SetActive(true);
+            RefreshPlayerLabel(panel, nameText, pid);   // 【问题②】玩家标识（P1/P2/CPU）
 
             int count = _fighterList.Count;
             if (count == 0) return;

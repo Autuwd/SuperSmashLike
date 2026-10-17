@@ -134,7 +134,7 @@ public class FrameMeter : MonoBehaviour
         // 按 playerID 精确匹配，不用列表下标！
         // 原因：ActivePlayers 的填充顺序 = FighterController.Start() 的注册顺序，
         //   一旦场景层级顺序变化 / 重生重注册，下标就会错位 → P1 显示 P2 的帧数。
-        //   playerID 是角色预制体上的固定值（Fighter_P1=0 / Fighter_P2=1），永远可靠。
+        //   playerID 是开局生成时写入的固定值（P1=0 / P2=1），永远可靠。
         FighterController f = null;
         var players = GameManager.Instance != null ? GameManager.Instance.ActivePlayers : null;
         if (players != null)

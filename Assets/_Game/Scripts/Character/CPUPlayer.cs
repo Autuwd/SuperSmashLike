@@ -226,7 +226,41 @@ namespace SuperSmashLike.Core
         private float strikeReadyTime;      // 下次可出招的最早时刻
         private bool inBand;                // 本 tick 的攻击带判定结果
         private bool pendingShieldOff;      // 盾意图收，但被硬直吞了，等能收时补
-        private AIProfile profile => Profiles[(int)difficulty];
+
+        // 【M6-D5 预留】有效档位 = 难度档 × 角色调参档（FighterData.aiTuning）。
+        // 【重点】难度可被 GameSettings 在运行时覆盖 → 不缓存，每次按需合成，避免失效同步问题。
+        //   aiTuning 全默认 1.0（或 null）→ 返回值与 Profiles[difficulty] 完全一致，行为零变化。
+        private AIProfile profile
+        {
+            get
+            {
+                AIProfile baseProfile = Profiles[(int)difficulty];
+                if (me == null || me.fighterData == null || me.fighterData.aiTuning == null)
+                    return baseProfile;   // 未配置调参 → 与旧版行为完全一致
+                return ApplyTuning(baseProfile, me.fighterData.aiTuning);
+            }
+        }
+
+        // 【M6-D5 预留】把角色调参倍率叠加到难度档上（框架预留：六角色当前全默认 = 无差异）。
+        //   chance 类钳制 [0,1]；时间类钳制下限 0.05s。
+        private static AIProfile ApplyTuning(AIProfile b, FighterData.AITuning t)
+        {
+            return new AIProfile
+            {
+                decisionInterval = Mathf.Max(0.05f, b.decisionInterval * t.decisionIntervalMul),
+                attackCooldown   = Mathf.Max(0.05f, b.attackCooldown * t.attackCooldownMul),
+                strikeChance     = Clamp01(b.strikeChance * t.strikeChanceMul),
+                guardChance      = Clamp01(b.guardChance * t.guardChanceMul),
+                evadeChance      = Clamp01(b.evadeChance * t.evadeChanceMul),
+                chaseChance      = Clamp01(b.chaseChance * t.chaseChanceMul),
+                flankChance      = Clamp01(b.flankChance * t.flankChanceMul),
+                pressureChance   = Clamp01(b.pressureChance * t.pressureChanceMul),
+                punishChance     = Clamp01(b.punishChance * t.punishChanceMul),
+                finisherBias     = Clamp01(b.finisherBias * t.finisherBiasMul),
+            };
+        }
+
+        private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 
         // ---- 出招选招（D2-⑤ 远程/近战）----
         // 【重点】以前 Strike 硬编码 fighterData.jab1，远程角色永远只会贴身挥拳。
@@ -1455,6 +1489,8 @@ namespace SuperSmashLike.Core
             {
                 fc.StateMachine.TransitionTo(fc.IsGrounded ? FighterState.Idle : FighterState.Fall);
             }
+            // 【关键】立即清零移动输入：否则冻结前最后一帧写入的方向会残留 → 木桩继续滑行
+            if (fc != null) fc.MoveInput = Vector2.zero;
             strikeReadyTime = 0f;
             decisionTimer = 0f;
         }

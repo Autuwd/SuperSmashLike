@@ -26,8 +26,8 @@ namespace SuperSmashLike.Core
         [Header("Identity")]
         public string fighterName = "New Fighter";   // 角色显示名称
         public Sprite portraitIcon;                  // 角色头像（选人界面用）
-        [Tooltip("选人确认时整实例换将用的斗士预制体（Fighter_*）。null = 无法换将，保持现有斗士")]
-        public GameObject fighterPrefab;             // 【M6-D1】CharacterSelectPanel 确认 → FighterSwapService 替换场景斗士
+        [Tooltip("开局按选人结果实例化的斗士预制体（Fighter_*）。null = 该角色无法生成")]
+        public GameObject fighterPrefab;             // 【M6-D1】选人结果写入 GameSettings；开局由 FighterSpawnService 实例化
 
         #endregion
 
@@ -80,6 +80,35 @@ namespace SuperSmashLike.Core
         [Header("AI")]
         [Tooltip("AI 定位：Melee=CPU 主动贴身近战；Ranged=CPU 保持距离放风筝")]
         public AIArchetype aiArchetype = AIArchetype.Melee;
+
+        #endregion
+
+        #region 3.7 AI 调参档（【M6-D5 预留】按角色差异化）
+
+        // 【M6-D5 预留】按角色的 AI 调参倍率：与难度档【相乘】叠加 = "角色性格 × 玩家难度"。
+        // 【设计】难度档（CPUPlayer.Profiles）表达"玩家选多难"；本调参档表达"这个角色什么性格"。
+        //   相乘后：简单档的 Barbarian 依然迟钝，但相对同档 Knight 更爱出手 —— 两条轴互不污染。
+        // 【量级约定】1.0 = 不改动（默认）；0.5 = 减半；2.0 = 翻倍。
+        //   chance 类字段乘后钳制 [0,1]；时间类字段钳制下限 0.05s（防填 0 变成每帧决策）。
+        // 【注意】框架默认全 1.0 = 六角色零差异，行为与引入本字段前【完全一致】；
+        //   差异化数值待角色设计定稿后逐角色填入（本字段只提供"可配置"能力）。
+        [Header("AI Tuning（可选 · 留默认 = 无差异）")]
+        public AITuning aiTuning = new AITuning();
+
+        [System.Serializable]
+        public class AITuning
+        {
+            [Tooltip("反应延迟倍率：<1 更敏锐 / >1 更迟钝")] public float decisionIntervalMul = 1f;
+            [Tooltip("出招间隙倍率：<1 更激进 / >1 更克制")] public float attackCooldownMul = 1f;
+            [Tooltip("攻击欲望倍率")] public float strikeChanceMul = 1f;
+            [Tooltip("防御倾向倍率")] public float guardChanceMul = 1f;
+            [Tooltip("闪避概率倍率")] public float evadeChanceMul = 1f;
+            [Tooltip("追击概率倍率")] public float chaseChanceMul = 1f;
+            [Tooltip("绕后概率倍率")] public float flankChanceMul = 1f;
+            [Tooltip("压制概率倍率")] public float pressureChanceMul = 1f;
+            [Tooltip("择时读招倍率")] public float punishChanceMul = 1f;
+            [Tooltip("终结倾向倍率")] public float finisherBiasMul = 1f;
+        }
 
         #endregion
 

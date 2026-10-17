@@ -13,7 +13,7 @@ using UnityEngine;
 //   ① FD_Rogue.asset      ：复制 FD_Knight → 改名/换色/调数值；23 个攻击槽整体克隆并缩放
 //   ② P3.asset            ：复制 P1.asset 生成游侠骨架 Avatar
 //   ③ 资源副本            ：Synty 暗精灵模型/匕首 → Assets/_Game/Art/（保持项目内引用）
-//   ④ Fighter_Rogue.prefab：复制 Fighter_P1 结构，换模型/武器/头像/数据/判定框
+//   ④ Fighter_Rogue.prefab：复制 Fighter_Knight 结构，换模型/武器/头像/数据/判定框
 //   ⑤ GS_Default 注册 + 回填各 FD 的 fighterPrefab 映射 + 校验
 // ============================================================
 public static class RogueSetupWizard
@@ -28,8 +28,8 @@ public static class RogueSetupWizard
     private const string ModelDstPath    = "Assets/_Game/Art/Character/SM_Chr_DarkElf_01.prefab";
     private const string DaggerSrcPath   = "Assets/Synty/PolygonFantasyRivals/Prefabs/Weapons/SM_Wep_DarkElf_01.prefab";
     private const string DaggerDstPath   = "Assets/_Game/Art/Weapon/SM_Wep_DarkElf_01.prefab";
-    private const string P1PrefabPath    = "Assets/_Game/Prefabs/Fighters/Fighter_P1.prefab";
-    private const string P2PrefabPath    = "Assets/_Game/Prefabs/Fighters/Fighter_P2.prefab";
+    private const string KnightPrefabPath    = "Assets/_Game/Prefabs/Fighters/Fighter_Knight.prefab";
+    private const string BarbarianPrefabPath = "Assets/_Game/Prefabs/Fighters/Fighter_Barbarian.prefab";
     private const string RoguePrefabPath = "Assets/_Game/Prefabs/Fighters/Fighter_Rogue.prefab";
     private const string GsPath          = "Assets/_Game/ScriptableObjects/GameModes/GS_Default.asset";
 
@@ -158,7 +158,7 @@ public static class RogueSetupWizard
     }
 
     // ============================================================
-    // ④ 斗士预制体：Fighter_Rogue.prefab（以 Fighter_P1 为模板）
+    // ④ 斗士预制体：Fighter_Rogue.prefab（以 Fighter_Knight 为模板）
     // ============================================================
     private static GameObject Step4_BuildFighterPrefab(FighterData rogue, Avatar avatar,
                                                        GameObject modelPrefab, GameObject daggerPrefab)
@@ -172,8 +172,8 @@ public static class RogueSetupWizard
         if (AssetDatabase.LoadAssetAtPath<GameObject>(RoguePrefabPath) != null)
             AssetDatabase.DeleteAsset(RoguePrefabPath);
 
-        GameObject root = PrefabUtility.LoadPrefabContents(P1PrefabPath);
-        if (root == null) { Debug.LogError($"[Rogue] ④ 无法加载模板 {P1PrefabPath}"); return null; }
+        GameObject root = PrefabUtility.LoadPrefabContents(KnightPrefabPath);
+        if (root == null) { Debug.LogError($"[Rogue] ④ 无法加载模板 {KnightPrefabPath}"); return null; }
 
         try
         {
@@ -278,8 +278,8 @@ public static class RogueSetupWizard
         EditorUtility.SetDirty(gs);
 
         // 回填 fighterPrefab 映射
-        SetFighterPrefab(FdKnightPath, P1PrefabPath);
-        SetFighterPrefab(FdBarbarianPath, P2PrefabPath);
+        SetFighterPrefab(FdKnightPath, KnightPrefabPath);
+        SetFighterPrefab(FdBarbarianPath, BarbarianPrefabPath);
         SetFighterPrefab(FdRoguePath, RoguePrefabPath);
 
         // ---- 校验 ----

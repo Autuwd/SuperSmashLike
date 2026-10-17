@@ -44,6 +44,7 @@ namespace SuperSmashLike.UI
         private readonly List<Selectable> _rows = new();
         private int _row;
         private float _nextNav;
+        private float _nextAdj;   // 手柄水平调整冷却时间戳（问题③）
 
         private void OnEnable()
         {
@@ -107,6 +108,17 @@ namespace SuperSmashLike.UI
                 int adj = 0;
                 if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)) adj = -1;
                 else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) adj = 1;
+
+                // 手柄水平调整（问题③修复：此前只支持键盘左右 → 摇杆/十字键水平无反应）
+                if (adj == 0 && gp != null && Time.unscaledTime >= _nextAdj)
+                {
+                    Vector2 nav = gp.leftStick.ReadValue();
+                    Vector2 dpad = gp.dpad.ReadValue();
+                    if (dpad.sqrMagnitude > nav.sqrMagnitude) nav = dpad;
+                    if (nav.x > 0.5f) { adj = 1; _nextAdj = Time.unscaledTime + 0.18f; }
+                    else if (nav.x < -0.5f) { adj = -1; _nextAdj = Time.unscaledTime + 0.18f; }
+                }
+
                 if (adj != 0) AdjustCurrent(adj);
             }
         }
@@ -147,6 +159,22 @@ namespace SuperSmashLike.UI
                 if (s == null || !s.gameObject.activeInHierarchy) continue;
                 _rows.Add(s);
             }
+        }
+
+        // 【做什么】人数变化后重建行列表并保持当前选中（问题③修复）
+        // 【为什么】设备行随 playerCount 显隐，但 _rows 此前仅在 OpenPage 时构建一次：
+        //   上页后再调人数 → 新出现的设备行不在 _rows 里 → 方向键永远选不中。
+        private void RebuildRowsKeepSelection()
+        {
+            if (_page < 0) return;
+            string keepName = (_rows.Count > 0 && _row >= 0 && _row < _rows.Count)
+                ? _rows[_row].gameObject.name
+                : null;
+            BuildRows();
+            if (_rows.Count == 0) { _row = 0; return; }
+            int idx = string.IsNullOrEmpty(keepName) ? -1 : _rows.FindIndex(s => s.gameObject.name == keepName);
+            _row = idx >= 0 ? idx : Mathf.Clamp(_row, 0, _rows.Count - 1);
+            SelectRow(_row);
         }
 
         #endregion
@@ -246,6 +274,12 @@ namespace SuperSmashLike.UI
             Wire("AiDec", () => ChangeAi(-1));
             Wire("StartGameBtn", StartGame);
             Wire("EnterTrainingBtn", StartTraining);
+
+            // 设备行按钮（问题③修复：此前未接 onClick → 鼠标点击 DevP 行无任何反应）
+            Wire("DevP1", () => CycleDevice(0, +1));
+            Wire("DevP2", () => CycleDevice(1, +1));
+            Wire("DevP3", () => CycleDevice(2, +1));
+            Wire("DevP4", () => CycleDevice(3, +1));
         }
 
         private void Wire(string btnName, UnityEngine.Events.UnityAction action)
@@ -260,8 +294,21 @@ namespace SuperSmashLike.UI
             }
         }
 
-        public void ChangePlayer(int d) { playerCount = Mathf.Clamp(playerCount + d, 1, 4); RefreshCounts(); }
-        public void ChangeAi(int d) { aiCount = Mathf.Clamp(aiCount + d, 0, 3); RefreshCounts(); }
+        // 【问题③修复】人数变化后同步重建子页行列表（设备行显隐随之变化）
+        // 【问题②约定】参与者总数（人类+AI）≤ 4：调人类超限时自动降 AI；AI 上限 = 4 - 人类
+        public void ChangePlayer(int d)
+        {
+            playerCount = Mathf.Clamp(playerCount + d, 1, 4);
+            aiCount = Mathf.Min(aiCount, 4 - playerCount);
+            RefreshCounts();
+            RebuildRowsKeepSelection();
+        }
+
+        public void ChangeAi(int d)
+        {
+            aiCount = Mathf.Clamp(aiCount + d, 0, 4 - playerCount);
+            RefreshCounts();
+        }
 
         private static string DeviceName(int d) => d == 2 ? "手柄" : (d == 1 ? "键盘P2区" : "键盘P1区");
 

@@ -28,8 +28,6 @@ namespace SuperSmashLike.UI
         // 【做什么】外部强制显示（如训练菜单打开时，需要底部按键提示）
         public static bool ForceShow;
 
-        private static float s_lastEscTime = -10f;
-
         private void Update()
         {
             HandleEsc();
@@ -49,7 +47,9 @@ namespace SuperSmashLike.UI
         }
 
         // 【做什么】Esc 兜底：普通对战打开/关闭暂停菜单
-        //   挂在常驻 Canvas 上（不依赖 GameManager 的 Update），0.2s 去重
+        //   挂在常驻 Canvas 上（不依赖 GameManager 的 Update）
+        // 【问题①修复 2026-10-17】切换与去重统一走 GameManager.TogglePause（唯一静态冷却）；
+        //   本类不再自持 0.2s 冷却 —— 否则与输入系统 Pause 动作的通道互不知情、同帧互抵净零。
         private bool _escWasDown;
 
         private void HandleEsc()
@@ -70,13 +70,8 @@ namespace SuperSmashLike.UI
             }
 
             if (!legacyEsc && !newEsc && !pauseKey) return;
-            if (Time.unscaledTime - s_lastEscTime < 0.2f) return;
-            s_lastEscTime = Time.unscaledTime;
 
-            var gm = GameManager.Instance;
-            if (gm == null) return;
-            if (gm.CurrentGameState == GameState.Battle) gm.PauseGame();
-            else if (gm.CurrentGameState == GameState.Paused) gm.ResumeGame();
+            GameManager.Instance?.TogglePause();
         }
 
         private static bool _loggedNoKb;

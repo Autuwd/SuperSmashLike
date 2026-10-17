@@ -12,8 +12,8 @@ using UnityEngine;
 // 步骤（幂等：Avatar / 资源副本复用已有，斗士预制体每次重建）：
 //   ① P5.asset / P6.asset ：复制 P1.asset 生成两个角色的骨架 Avatar
 //   ② 资源副本：Mystic 模型+法杖（新复制）；AncientQueen 模型+武器（已有副本复用）
-//   ③ Fighter_Archer.prefab：模板 Fighter_P1 → 换 AncientQueen 模型 + 女王武器挂 Hand_R
-//   ④ Fighter_Mage.prefab  ：模板 Fighter_P1 → 换 Mystic 模型 + 法杖挂 Hand_R
+//   ③ Fighter_Archer.prefab：模板 Fighter_Knight → 换 AncientQueen 模型 + 女王武器挂 Hand_R
+//   ④ Fighter_Mage.prefab  ：模板 Fighter_Knight → 换 Mystic 模型 + 法杖挂 Hand_R
 //   ⑤ 回填 FD_Archer / FD_Mage.fighterPrefab + 校验（GS 可选 6 人、模型/头像/挂点）
 //
 // 【选型依据】Docs/12 §11.2：Archer=弓箭·快·远程(特殊) / Mage=法杖·轻击·魔法必杀；
@@ -38,8 +38,8 @@ public static class ArcherMageSetupWizard
     private const string MysticWeaponSrc = "Assets/Synty/PolygonFantasyRivals/Prefabs/Weapons/SM_Wep_Mystic_01.prefab";
     private const string MysticWeaponDst = "Assets/_Game/Art/Weapon/SM_Wep_Mystic_01.prefab";
 
-    private const string P1PrefabPath      = "Assets/_Game/Prefabs/Fighters/Fighter_P1.prefab";
-    private const string P2PrefabPath      = "Assets/_Game/Prefabs/Fighters/Fighter_P2.prefab";
+    private const string KnightPrefabPath      = "Assets/_Game/Prefabs/Fighters/Fighter_Knight.prefab";
+    private const string BarbarianPrefabPath   = "Assets/_Game/Prefabs/Fighters/Fighter_Barbarian.prefab";
     private const string RoguePrefabPath   = "Assets/_Game/Prefabs/Fighters/Fighter_Rogue.prefab";
     private const string PaladinPrefabPath = "Assets/_Game/Prefabs/Fighters/Fighter_Paladin.prefab";
     private const string ArcherPrefabPath  = "Assets/_Game/Prefabs/Fighters/Fighter_Archer.prefab";
@@ -136,7 +136,7 @@ public static class ArcherMageSetupWizard
     }
 
     // ============================================================
-    // ③④ 斗士预制体：以 Fighter_P1 为模板（单武器挂 Hand_R）
+    // ③④ 斗士预制体：以 Fighter_Knight 为模板（单武器挂 Hand_R）
     // ============================================================
     private static GameObject Step3_BuildFighterPrefab(string rootName, string prefabPath,
         FighterData fd, Avatar avatar, GameObject modelPrefab, GameObject weaponPrefab, string modelNameHint)
@@ -150,8 +150,8 @@ public static class ArcherMageSetupWizard
         if (AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) != null)
             AssetDatabase.DeleteAsset(prefabPath);
 
-        GameObject root = PrefabUtility.LoadPrefabContents(P1PrefabPath);
-        if (root == null) { Debug.LogError($"[AM] {rootName} 无法加载模板 {P1PrefabPath}"); return null; }
+        GameObject root = PrefabUtility.LoadPrefabContents(KnightPrefabPath);
+        if (root == null) { Debug.LogError($"[AM] {rootName} 无法加载模板 {KnightPrefabPath}"); return null; }
 
         try
         {
@@ -247,8 +247,8 @@ public static class ArcherMageSetupWizard
                                                 FighterData mage, GameObject magePrefab)
     {
         // 回填 fighterPrefab（六角色全量对齐，幂等）
-        SetFighterPrefab("FD_Knight", P1PrefabPath);
-        SetFighterPrefab("FD_Barbarian", P2PrefabPath);
+        SetFighterPrefab("FD_Knight", KnightPrefabPath);
+        SetFighterPrefab("FD_Barbarian", BarbarianPrefabPath);
         SetFighterPrefab("FD_Rogue", RoguePrefabPath);
         SetFighterPrefab("FD_Paladin", PaladinPrefabPath);
         SetFighterPrefab("FD_Archer", ArcherPrefabPath);

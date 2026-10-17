@@ -24,18 +24,6 @@ namespace SuperSmashLike.Training
 
         private void Start()
         {
-            var fighters = FindObjectsOfType<FighterController>();
-            foreach (var f in fighters)
-            {
-                if (f.playerID == 0) p1 = f;
-                if (f.playerID == 1) p2 = f;
-            }
-
-            if (p1 != null)
-                p1.OnDamaged += OnP1Damaged;
-            if (p2 != null)
-                p2.OnDamaged += OnP2Damaged;
-
             _canvas = GetComponentInParent<Canvas>();
             _popupFont = hintText != null ? hintText.font : null;
 
@@ -45,12 +33,43 @@ namespace SuperSmashLike.Training
                 hintText.text = "Esc 菜单   R 重置   T CPU   I 无敌   H HUD（帧数据/慢动作见菜单）";
         }
 
-        private void OnDestroy()
+        // 【做什么】每次激活时重新绑定斗士引用与受击事件
+        // 【为什么用 OnEnable 而不是 Start】训练重进（退出→再进）时斗士会销毁重建，
+        //   Start 只跑一次会留下死引用；HUD 根每次激活都重新绑定，
+        //   H 键开关 HUD 也走同一路径，订阅/解绑成对，不会重复订阅
+        private void OnEnable()
+        {
+            UnbindFighters();   // 防御：先清旧订阅，避免重复订阅导致伤害飘字/文本异常
+            BindFighters();
+        }
+
+        private void OnDisable()
+        {
+            UnbindFighters();
+        }
+
+        private void BindFighters()
+        {
+            foreach (var f in FindObjectsOfType<FighterController>())
+            {
+                if (f.playerID == 0) p1 = f;
+                if (f.playerID == 1) p2 = f;
+            }
+
+            if (p1 != null)
+                p1.OnDamaged += OnP1Damaged;
+            if (p2 != null)
+                p2.OnDamaged += OnP2Damaged;
+        }
+
+        private void UnbindFighters()
         {
             if (p1 != null)
                 p1.OnDamaged -= OnP1Damaged;
             if (p2 != null)
                 p2.OnDamaged -= OnP2Damaged;
+            p1 = null;
+            p2 = null;
         }
 
         private void OnP1Damaged(float dmg, FighterController attacker)
@@ -90,6 +109,13 @@ namespace SuperSmashLike.Training
 
         private void Update()
         {
+            // 【自愈】引用失效（斗士被未经根激活切换的重建替换）→ 重新绑定
+            if (p1 == null || p2 == null)
+            {
+                UnbindFighters();
+                BindFighters();
+            }
+
             if (p1 != null && p1DamageText != null)
                 p1DamageText.text = $"P1: {p1.CurrentDamage:F1}%";
             if (p2 != null && p2DamageText != null)

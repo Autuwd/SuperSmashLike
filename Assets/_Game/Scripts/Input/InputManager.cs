@@ -295,23 +295,17 @@ namespace SuperSmashLike.InputSystem
             TauntPressed = true;   // 当前无消费方（嘲讽功能未实现）
         }
 
-        // 暂停去重时间戳（static：两个 InputManager 共用一个冷却）
-        private static float s_lastPauseToggleTime = -10f;
-
         // 【做什么】暂停/恢复切换
-        // 【注意】Escape 同属 KeyboardP1/KeyboardP2 两组 → 两个 InputManager 都会收到，
-        //   用 0.2s 冷却去重，避免一次按键触发"暂停→立即恢复"。
+        // 【注意】Escape 同属 KeyboardP1/KeyboardP2 两组 → 两个 InputManager 都会收到。
+        // 【问题①修复 2026-10-17】去重与切换统一收敛到 GameManager.TogglePause 的静态冷却：
+        //   此前本类与 KeyHintBar 各自持冷却、互不知情 → Esc 同帧 Pause→Resume 互抵净零。
+        //   本类不再自持冷却，一次按键周期只允许 TogglePause 切换一次。
         private void OnPauseCtx(InputAction.CallbackContext ctx)
         {
             if (GameManager.Instance == null) return;
-            if (Time.unscaledTime - s_lastPauseToggleTime < 0.2f) return;
-            s_lastPauseToggleTime = Time.unscaledTime;
 
             SmashDebug.Log(DebugChannel.Input, $"[Pause] 动作触发! state={GameManager.Instance.CurrentGameState}");
-            if (GameManager.Instance.CurrentGameState == GameState.Battle)
-                GameManager.Instance.PauseGame();
-            else if (GameManager.Instance.CurrentGameState == GameState.Paused)
-                GameManager.Instance.ResumeGame();
+            GameManager.Instance.TogglePause();
         }
 
         #endregion

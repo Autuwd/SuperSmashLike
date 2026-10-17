@@ -549,11 +549,11 @@ public class DemoSetupWizard : EditorWindow
         }
         mm.spawnPoints = spawnList.ToArray();
 
-        // === 5. Fighter P1 ===
-        string fighterPath = "Assets/_Game/Prefabs/Fighters/Fighter_Base.prefab";
+        // === 5. Fighter P1（剑士）===
+        string fighterPath = "Assets/_Game/Prefabs/Fighters/Fighter_Knight.prefab";
         var fighterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(fighterPath);
         var p1 = PrefabUtility.InstantiatePrefab(fighterPrefab) as GameObject;
-        p1.name = "Fighter_P1";
+        p1.name = "Fighter_Knight";
         p1.transform.position = new Vector3(-4f, 3f, 0f);
         var fc1 = p1.GetComponent<FighterController>();
         fc1.playerID = 0;
@@ -565,9 +565,10 @@ public class DemoSetupWizard : EditorWindow
         var inputAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.InputSystem.InputActionAsset>(inputPath);
         if (inputAsset != null) p1Input.actions = inputAsset;
 
-        // === 6. Fighter P2 ===
-        var p2 = PrefabUtility.InstantiatePrefab(fighterPrefab) as GameObject;
-        p2.name = "Fighter_P2";
+        // === 6. Fighter P2（野蛮人）===
+        var barbarianPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Game/Prefabs/Fighters/Fighter_Barbarian.prefab");
+        var p2 = PrefabUtility.InstantiatePrefab(barbarianPrefab) as GameObject;
+        p2.name = "Fighter_Barbarian";
         p2.transform.position = new Vector3(4f, 3f, 0f);
         var fc2 = p2.GetComponent<FighterController>();
         fc2.playerID = 1;

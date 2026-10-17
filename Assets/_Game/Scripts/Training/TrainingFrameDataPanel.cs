@@ -24,8 +24,23 @@ namespace SuperSmashLike.Training
         private FighterController p2;
         private readonly StringBuilder _sb = new StringBuilder();
 
-        private void Start()
+        // 【做什么】每次激活时重新绑定斗士（训练重进后旧实例已销毁）
+        // 【为什么用 OnEnable 而不是 Start】Start 只跑一次，重进训练会留下死引用 → 面板恒显示 "-"
+        private void OnEnable()
         {
+            BindFighters();
+        }
+
+        private void OnDisable()
+        {
+            p1 = null;
+            p2 = null;
+        }
+
+        private void BindFighters()
+        {
+            p1 = null;
+            p2 = null;
             foreach (var f in FindObjectsOfType<FighterController>())
             {
                 if (f.playerID == 0) p1 = f;
@@ -36,6 +51,10 @@ namespace SuperSmashLike.Training
         private void Update()
         {
             if (frameText == null) return;
+
+            // 【自愈】引用失效（斗士被未经根激活切换的重建替换）→ 重新绑定
+            if (p1 == null || p2 == null) BindFighters();
+
             _sb.Clear();
             AppendFighter("P1", p1);
             AppendFighter("P2", p2);

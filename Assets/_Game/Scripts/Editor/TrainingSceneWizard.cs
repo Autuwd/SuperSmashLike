@@ -14,8 +14,9 @@ using UnityEngine.UI;
 // TrainingSceneWizard — M5 训练模式场景接线（编辑器工具）
 // 职责：
 //   1. 在 BattleTest 场景中创建 TrainingModeController
-//   2. 在 Canvas 下创建 TrainingHudRoot（含 4 个 TMP 文本）
-//   3. 自动接线所有引用（player1/player2/trainingHudRoot + HUD 文本）
+//   2. 在 Canvas 下创建 TrainingHudRoot（含 4 个 TMP 文本，默认 inactive）
+//   3. 自动接线引用（trainingHudRoot + HUD 文本；player1/player2 留空）
+// 【⑥】场景不再预放斗士：player1/player2 由 FighterSpawnService 开局生成后回绑
 // 使用：
 //   菜单 SuperSmashLike → 40. Setup Training Mode
 //   或 -batchmode -executeMethod TrainingSceneWizard.Run
@@ -41,31 +42,12 @@ public static class TrainingSceneWizard
         }
 
         // 查找必要对象
+        // 【⑥】场景不再预放斗士：player1/player2 留空，开局由 FighterSpawnService 生成并回绑
         var canvas = GameObject.Find("Canvas");
-        var fighterP1 = GameObject.Find("Fighter_P1");
-        var fighterP2 = GameObject.Find("Fighter_P2");
 
         if (canvas == null)
         {
             Debug.LogError("[TrainingSceneWizard] 场景中找不到 Canvas");
-            return;
-        }
-        if (fighterP1 == null)
-        {
-            Debug.LogError("[TrainingSceneWizard] 场景中找不到 Fighter_P1");
-            return;
-        }
-        if (fighterP2 == null)
-        {
-            Debug.LogError("[TrainingSceneWizard] 场景中找不到 Fighter_P2");
-            return;
-        }
-
-        var fighterCtrl1 = fighterP1.GetComponent<FighterController>();
-        var fighterCtrl2 = fighterP2.GetComponent<FighterController>();
-        if (fighterCtrl1 == null || fighterCtrl2 == null)
-        {
-            Debug.LogError("[TrainingSceneWizard] Fighter_P1/P2 缺少 FighterController 组件");
             return;
         }
 
@@ -98,6 +80,9 @@ public static class TrainingSceneWizard
         hudRect.offsetMin = Vector2.zero;
         hudRect.offsetMax = Vector2.zero;
         hudRect.pivot = new Vector2(0.5f, 0.5f);
+
+        // 【⑥】默认隐藏：训练 HUD 仅训练模式显示（运行时由 TMC 按状态激活）
+        hudRoot.SetActive(false);
 
         // 查找现有 TMP 字体
         // 【注意】TitlePanel 在场景里常为 inactive（UI 状态驱动），GameObject.Find 找不到 → 深度查找（含 inactive）
@@ -152,8 +137,7 @@ public static class TrainingSceneWizard
         var tmc = tmcGo.AddComponent<TrainingModeController>();
         var boxOverlay = tmcGo.AddComponent<TrainingBoxOverlay>();
         var tmcSo = new SerializedObject(tmc);
-        tmcSo.FindProperty("player1").objectReferenceValue = fighterCtrl1;
-        tmcSo.FindProperty("player2").objectReferenceValue = fighterCtrl2;
+        // 【⑥】player1/player2 不接线：场景无预放斗士，开局由 FighterSpawnService 生成并回绑
         tmcSo.FindProperty("trainingHudRoot").objectReferenceValue = hudRoot;
         tmcSo.FindProperty("slowMoScale").floatValue = 0.5f;
         tmcSo.ApplyModifiedPropertiesWithoutUndo();
@@ -245,8 +229,7 @@ public static class TrainingSceneWizard
         // 6. 输出验证信息
         Debug.Log("[TrainingSceneWizard] ===== 完成 =====");
         Debug.Log($"[TrainingSceneWizard] TrainingModeController: {(tmcGo != null ? "OK" : "FAIL")}");
-        Debug.Log($"[TrainingSceneWizard] - player1 非空: {(tmc.player1 != null)}");
-        Debug.Log($"[TrainingSceneWizard] - player2 非空: {(tmc.player2 != null)}");
+        Debug.Log("[TrainingSceneWizard] - player1/player2: 留空（运行时由 FighterSpawnService 回绑）");
         Debug.Log($"[TrainingSceneWizard] - trainingHudRoot 非空: {(tmc.trainingHudRoot != null)}");
         Debug.Log($"[TrainingSceneWizard] TrainingHudRoot: {(hudRoot != null ? "OK" : "FAIL")} (子节点数: {hudRoot.transform.childCount})");
         Debug.Log($"[TrainingSceneWizard] - P1Damage: {(p1Damage != null)}");

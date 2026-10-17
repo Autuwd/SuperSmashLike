@@ -409,7 +409,7 @@ GameObject:
   - component: {fileID: 4834784801906068071}
   - component: {fileID: 2222775914692705947}
   m_Layer: 0
-  m_Name: Fighter_P2
+  m_Name: Fighter_Barbarian
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
