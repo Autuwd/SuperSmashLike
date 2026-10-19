@@ -103,6 +103,11 @@ namespace SuperSmashLike.InputSystem
                         : InputBinding.MaskByGroup(kbGroup);
                     runtimeActions.bindingMask = _defaultMask;
 
+                    // M8-D3：初始化重绑定服务（master 克隆 + 应用已存覆盖），
+                    // 再把已存的按键覆盖应用到本运行时资产（空 JSON 时为 no-op）
+                    SuperSmashLike.InputSystem.InputRebindService.Initialize(playerInput.actions);
+                    SuperSmashLike.InputSystem.InputRebindService.ApplyTo(runtimeActions);
+
                     if (SmashDebug.IsOn(DebugChannel.Input))
                         SmashDebug.Log(DebugChannel.Input, $"输入分组隔离: playerID={pid} → {kbGroup}");
                 }
@@ -201,6 +206,9 @@ namespace SuperSmashLike.InputSystem
             // 交给 OnPauseCtx 里的极短冷却去重，避免"暂停→立即恢复"。
             gameplayMap.FindAction("Pause").started += OnPauseCtx;
 
+            // M8-D3：重绑定/恢复默认后重新应用覆盖并重启地图（与 OnDisable 对称退订）
+            InputRebindService.OnOverridesChanged += HandleOverridesChanged;
+
             gameplayMap.Enable();
 
             if (SmashDebug.IsOn(DebugChannel.Input))
@@ -227,8 +235,18 @@ namespace SuperSmashLike.InputSystem
             gameplayMap.FindAction("Grab").started -= OnGrabCtx;
             gameplayMap.FindAction("Taunt").started -= OnTauntCtx;
             gameplayMap.FindAction("Pause").started -= OnPauseCtx;
+            InputRebindService.OnOverridesChanged -= HandleOverridesChanged;
 
             gameplayMap.Disable();
+        }
+
+        // 【做什么】重绑定覆盖变化后：把新覆盖应用到本运行时资产并重启地图强制重新解析
+        // 【注意】Disable/Enable 不影响已订阅的 Action 回调，只刷新绑定解析结果
+        private void HandleOverridesChanged()
+        {
+            if (runtimeActions == null) return;
+            InputRebindService.ApplyTo(runtimeActions);
+            if (gameplayMap != null) { gameplayMap.Disable(); gameplayMap.Enable(); }
         }
 
         #endregion

@@ -192,6 +192,7 @@ namespace SuperSmashLike.Core
 
         // ---- 公开只读状态 ----
         public bool IsGrounded { get; private set; }               // 是否在地面（每帧更新）
+        private bool _wasGrounded = true;                          // 上一帧是否贴地（【M8-D2】落地音边沿检测；初值 true = 出生帧不误播）
         public FighterStateMachine StateMachine { get; private set; } = new();
         public float CurrentDamage { get; private set; }           // 当前伤害百分比（0~999%）
         public float CurrentKnockbackSpeed { get; set; }           // 当前击飞速度
@@ -673,6 +674,10 @@ namespace SuperSmashLike.Core
         // 【做什么】重力 / 快速下落 / 落地处理 / 受身窗口判定
         private void UpdateGravity()
         {
+            // 【M8-D2】先读后写：wasGrounded = 上一帧贴地状态，用于"离地→贴地"转换帧检测（落地音）
+            bool wasGrounded = _wasGrounded;
+            _wasGrounded = IsGrounded;
+
             // 空中且不在击飞中 → 累加重力
             if (!IsGrounded && !isInKnockback)
                 velocity.y += Physics2D.gravity.y * gravityScale * Time.deltaTime;
@@ -706,6 +711,10 @@ namespace SuperSmashLike.Core
             // 落地 → 重置垂直速度 + 恢复跳跃次数
             else if (IsGrounded && velocity.y <= 0f)
             {
+                // 【M8-D2】落地音：只在"离地→贴地"转换的那一帧播一次（站立时本分支每帧都会进入）
+                if (!wasGrounded)
+                    AudioManager.Sfx(SfxId.Land, 0.5f);
+
                 if (StateMachine.CurrentState == FighterState.Jump
                     || StateMachine.CurrentState == FighterState.Fall)
                 {
@@ -823,6 +832,9 @@ namespace SuperSmashLike.Core
             StateMachine.TransitionTo(FighterState.Jump);
             isJumping = true;
             jumpBufferTimer = 0f;   // 消耗缓冲
+
+            // 【M8-D2】起跳音：放在守卫之后 —— 只有真正起跳（含二段跳/落地缓冲跳）才播，失败尝试不播
+            AudioManager.Sfx(SfxId.Jump);
         }
 
         // 【做什么】硬直结束协程：把击飞惯性交接给正常操控
@@ -1281,13 +1293,21 @@ namespace SuperSmashLike.Core
                 {
                     if (SmashDebug.IsOn(DebugChannel.Combat))
                         SmashDebug.Log(DebugChannel.Combat, "盾反触发！");
+                    AudioManager.Sfx(SfxId.Parry);   // 【M8-D2】盾反音效
                     PerformParry(attacker);
                     return;    // 不掉血、不掉盾
                 }
 
                 currentShieldHP -= DamageSystem.CalculateShieldDamage(attack, currentShieldHP);
                 if (currentShieldHP <= 0f)
-                    BreakShield();   // 破盾 → 进 Stun 大眩晕
+                {
+                    BreakShield();                              // 破盾 → 进 Stun 大眩晕
+                    AudioManager.Sfx(SfxId.ShieldBreak);        // 【M8-D2】破盾音效（不叠普通盾音）
+                }
+                else
+                {
+                    AudioManager.Sfx(SfxId.ShieldHit);          // 【M8-D2】普通盾格挡音效
+                }
                 return;              // 关键：盾防走完直接返回，不再掉血/击飞
             }
 
@@ -1357,7 +1377,7 @@ namespace SuperSmashLike.Core
             var cam = FindObjectOfType<CameraManager>();
             if (cam != null) cam.FlashWhite(0.15f);
 
-            // TODO(M8): 盾反音效 PlayParrySFX()
+            // 【M8-D2】盾反音效已在 ApplyDamage 的盾反分支播放（本方法只由该分支调用，不在此重复播）
 
             OnParrySuccess?.Invoke(attacker);
         }
@@ -1736,6 +1756,10 @@ namespace SuperSmashLike.Core
 
             if (SmashDebug.IsOn(DebugChannel.Match))
                 SmashDebug.Log(DebugChannel.Match, $"扣命后剩余: {remainingStocks}");
+
+            // 【M8-D2】KO 音效：放在两个防重入守卫（Dead / _isKilling）之后 ——
+            //   EndMatch 等路径的重复调用不会二次播，每次真实击杀只播一次
+            AudioManager.Sfx(SfxId.KO);
 
             StateMachine.TransitionTo(FighterState.Dead);
             OnKilled?.Invoke(this, lastAttackerPlayerId);

@@ -102,6 +102,28 @@ namespace SuperSmashLike.Core
             }
             Instance = this;
             DontDestroyOnLoad(gameObject);  // 场景切换时不销毁
+
+            // 【M8-D5】把「游戏设置页」保存的默认偏好种入本局 GameSettings
+            ApplyGameplayDefaultsFromStore();
+        }
+
+        // 【做什么】用 SettingsStore 里保存的默认偏好（规则模式 / 命数 / CPU 难度）初始化 GameSettings
+        // 【为什么】设置页改的三个默认值原本是"死数据"——只落盘没有任何消费方，
+        //   导致"改完默认命数进战斗还是 3 条"。这里在启动时把它种入 GameSettings，
+        //   规则选择界面 LoadFromSettings() 随后读到的就是玩家保存的偏好（玩家仍可在该界面临时改）。
+        // 【注意】只播种这三个"默认偏好"字段；damageRatio / shieldMaxHP / enableItems 等
+        //   每局细项仍由规则界面自行维护，避免覆盖设计上的默认手感。
+        private void ApplyGameplayDefaultsFromStore()
+        {
+            if (gameSettings == null) return;        // 未拖入资产：保持 ScriptableObject 自身值
+            if (!SettingsStore.Loaded) return;       // 尚未读盘：不猜值
+
+            var gp = SettingsStore.Data != null ? SettingsStore.Data.gameplay : null;
+            if (gp == null) return;
+
+            gameSettings.matchMode = (GameSettings.MatchMode)Mathf.Clamp(gp.defaultMatchMode, 0, 1);
+            gameSettings.stockCount = Mathf.Clamp(gp.defaultStock, 1, 3);
+            gameSettings.cpuDifficulty = Mathf.Clamp(gp.defaultCpuDifficulty, 0, 3);
         }
 
         private void Start()

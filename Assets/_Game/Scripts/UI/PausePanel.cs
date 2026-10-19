@@ -16,6 +16,12 @@ namespace SuperSmashLike.UI
         [SerializeField] private Button quitButton;
         [SerializeField] private Button moveListButton;
 
+        [Header("Settings")]
+        [Tooltip("「设置」按钮：打开全屏设置面板（M8-D3/D4）")]
+        [SerializeField] private Button settingsButton;
+        [Tooltip("设置面板：打开时本脚本的方向键导航停摆，输入全部交给面板")]
+        [SerializeField] private SettingsPanel settingsPanel;
+
         [Header("Move List")]
         [SerializeField] private MoveListUI moveListUI;
 
@@ -49,6 +55,8 @@ namespace SuperSmashLike.UI
                 quitButton.onClick.AddListener(OnQuit);
             if (moveListButton != null)
                 moveListButton.onClick.AddListener(OnMoveList);
+            if (settingsButton != null)
+                settingsButton.onClick.AddListener(OnSettings);
 
             BuildNavButtons();
         }
@@ -57,6 +65,8 @@ namespace SuperSmashLike.UI
         private void OnEnable()
         {
             if (moveListUI != null) moveListUI.Close();
+            // 设置面板同理：重新弹出暂停菜单时回到"设置已关闭"状态（M8-D3/D4）
+            if (settingsPanel != null) settingsPanel.Close();
 
             if (_navButtons == null) BuildNavButtons();
             _navSelectionActive = true;
@@ -85,6 +95,18 @@ namespace SuperSmashLike.UI
                     (gp != null && gp.buttonEast.wasPressedThisFrame))
                     moveListUI.Close();
 
+                if (_navSelectionActive)
+                {
+                    if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+                    _navSelectionActive = false;
+                }
+                return;
+            }
+
+            // 设置面板打开时（M8-D3/D4）：输入全部交给面板（关闭键/重绑定），
+            // 本脚本导航停摆并清掉选中高亮，避免按确认键误触"继续"
+            if (settingsPanel != null && settingsPanel.IsOpen)
+            {
                 if (_navSelectionActive)
                 {
                     if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
@@ -149,9 +171,10 @@ namespace SuperSmashLike.UI
         private void BuildNavButtons()
         {
             // 【顺序】与菜单里的视觉顺序（自上而下）严格一致：
-            //   出招表(上) → 继续 → 重新开始 → 返回标题(下)
-            //   这样按"上/下"高亮才会跟着按钮的实际位置走。
-            var list = new System.Collections.Generic.List<Button>(4);
+            //   设置(最上) → 出招表 → 继续 → 重新开始 → 返回标题(下)
+            //   这样按"上/下"高亮才会跟着按钮的实际位置走。（M8-D3/D4：设置置顶）
+            var list = new System.Collections.Generic.List<Button>(5);
+            if (settingsButton != null) list.Add(settingsButton);
             if (moveListButton != null) list.Add(moveListButton);
             if (resumeButton != null)   list.Add(resumeButton);
             if (restartButton != null)  list.Add(restartButton);
@@ -245,6 +268,12 @@ namespace SuperSmashLike.UI
         {
             GameManager.Instance.ResumeGame();   // 先恢复 timeScale，避免新场景冻结
             GameManager.Instance.SwitchState(GameState.CharacterSelect);
+        }
+
+        // 【做什么】打开设置面板 —— 只开面板，绝不 ResumeGame，游戏保持暂停（M8-D3/D4）
+        private void OnSettings()
+        {
+            if (settingsPanel != null) settingsPanel.Open();
         }
 
         // 【做什么】打开出招表 —— 注意：绝不调 ResumeGame，游戏要保持暂停

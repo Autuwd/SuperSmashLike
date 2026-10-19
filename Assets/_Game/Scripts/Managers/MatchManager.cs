@@ -68,6 +68,7 @@ namespace SuperSmashLike.Managers
 
         private GameState _prevState = GameState.Title;   // 记录上一个状态，判断是否离开了 Battle
         private bool _trainingMode;
+        private bool _matchHadKo;   // 【M8-D2】本局是否出现过 Kill（KO 音已由 Kill 播过 → EndMatch 据此选收场音）
 
         // 委托缓存（订阅/退订对称的关键）
         private readonly Dictionary<FighterController, System.Action<float, FighterController>> _damagedHandlers = new();
@@ -105,7 +106,10 @@ namespace SuperSmashLike.Managers
 
             OnTimerUpdated -= OnTimerUpdatedHandler;
             OnGameOver -= OnGameOverHandler;
-            GameManager.Instance.OnGameStateChanged -= OnGameStateChangedHandler;
+            // 【空守卫】退出 Play / 拆解时序中 GameManager.Instance 可能已先一步被销毁，
+            //   此时无法反注册（GameManager 也已不存在，不会残留悬挂订阅），静默跳过即可。
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnGameStateChanged -= OnGameStateChangedHandler;
 
             UnsubscribeFighterEvents(_registeredFighters.ToList());
             _registeredFighters.Clear();
@@ -141,6 +145,15 @@ namespace SuperSmashLike.Managers
             // 通知结算面板填充统计（顺带传 KO 统计）
             if (OnGameOver != null) OnGameOver.Invoke(winnerID);
             GameManager.Instance.EndMatch();   // 通知 GameManager 切换到结算状态
+
+            // ===== 【M8-D2】结束收场音效 =====
+            // 【重点】"是否有 KO"只用本类的 _matchHadKo 判定（在 OnFighterKilledHandler 置位），
+            //   不反向依赖 FighterController —— KO 音已由 Kill() 播过，这里绝不重播 KO：
+            //   有 KO → UiStart；无 KO（时间到等无击杀收场）→ UiConfirm(0.6)
+            if (_matchHadKo)
+                AudioManager.Ui(SfxId.UiStart);
+            else
+                AudioManager.Ui(SfxId.UiConfirm, 0.6f);
         }
 
         // 【做什么】重生指定玩家（对外入口，当前由 OnPlayerOutOfBounds 走协程路径）
@@ -487,6 +500,7 @@ namespace SuperSmashLike.Managers
                 SmashDebug.Log(DebugChannel.Match, $"收到击杀事件: {victim.name} 击杀者={killerId} 剩余命数={victim.remainingStocks}");
 
             int id = victim.playerID;
+            _matchHadKo = true;   // 【M8-D2】本局出现过真实击杀 → EndMatch 不再播 UiConfirm 收场音
             // 统计 KO：killerId 有效且非自己
             if (killerId >= 0 && killerId < _koCounts.Length && killerId != id)
                 _koCounts[killerId]++;
@@ -662,6 +676,7 @@ namespace SuperSmashLike.Managers
 
             // 6. 清空 KO 统计
             for (int i = 0; i < _koCounts.Length; i++) _koCounts[i] = 0;
+            _matchHadKo = false;   // 【M8-D2】新一局复位收场音标记
         }
 
         #endregion

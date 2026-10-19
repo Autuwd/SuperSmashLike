@@ -99,7 +99,13 @@ namespace SuperSmashLike.Managers
         // 【注意】必须是 LateUpdate（等所有角色移动完成后再算）
         private void LateUpdate()
         {
-            List<FighterController> activePlayers = GameManager.Instance.ActivePlayers;
+            // 【空守卫】退出 Play / 场景拆解时序中 GameManager.Instance 可能已被清空
+            //   （直接从 BattleTest 进 Play、或 OnDestroy 顺序不确定时），
+            //   此处静默跳过本帧跟随，避免空引用刷屏。
+            GameManager gm = GameManager.Instance;
+            if (gm == null) return;
+
+            List<FighterController> activePlayers = gm.ActivePlayers;
             if (activePlayers == null || activePlayers.Count == 0) return;
 
             // 1. 所有存活玩家的中心位置

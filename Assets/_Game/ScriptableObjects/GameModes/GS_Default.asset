@@ -39,5 +39,5 @@ MonoBehaviour:
   - {fileID: 11400000, guid: b3c1c8ea305d0ee4297e9a431cf6d835, type: 2}
   selectableStages:
   - {fileID: 11400000, guid: 1b01293d91b797b42b89830fbe095a8b, type: 2}
-  - {fileID: 11400000, guid: 607f0286e4497c84d8a713dcac42866a, type: 2}
-  - {fileID: 11400000, guid: b5fb9a0ca9490f246801b57966a25c4f, type: 2}
+  - {fileID: 11400000, guid: c0e80d6c2904a764f996aa1bc2817836, type: 2}
+  - {fileID: 11400000, guid: adeec7b80eca1fe43a238017818b1c0f, type: 2}

@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.ivanmurzak.unity.mcp": "1.1.0",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.animation.rigging": "1.2.1",
     "com.unity.cinemachine": "2.10.7",
@@ -42,8 +43,7 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0",
-    "com.ivanmurzak.unity.mcp": "1.0.1"
+    "com.unity.modules.xr": "1.0.0"
   },
   "scopedRegistries": [
     {

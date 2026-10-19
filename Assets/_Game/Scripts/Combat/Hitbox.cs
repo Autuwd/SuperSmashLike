@@ -42,6 +42,10 @@ namespace SuperSmashLike.Combat
 
         private Collider2D hitCollider;
 
+        // ===== M8-D2 音效参数 =====
+        private const float HitSfxVolume = 0.8f;      // 命中音量
+        private const float SwingSfxVolume = 0.35f;   // 挥击音量
+
         #endregion
 
         #region 3. Unity 生命周期
@@ -71,6 +75,10 @@ namespace SuperSmashLike.Combat
                 hitCollider.enabled = false;
                 hitCollider.enabled = true;
             }
+
+            // 【M8-D2】挥击音：Activate 每次攻击只被动画事件调用一次（放 Update 里会逐帧连响）；
+            //   pitch 随机 0.95~1.05，避免连续攻击音高完全一致
+            AudioManager.Sfx(SfxId.Swing, SwingSfxVolume, Random.Range(0.95f, 1.05f));
         }
 
         // 【做什么】关闭判定框
@@ -108,8 +116,21 @@ namespace SuperSmashLike.Combat
             // 确认碰撞到的是受击框，且不是自己（避免自伤）
             if (hurtbox == null || hurtbox.owner == owner) return;
 
+            // 【M8-D2】先快照命中确认态，再调 ApplyDamage —— ApplyDamage 会让被击者进受击/击飞态，
+            //   无敌/举盾（盾反/破盾走护盾音效分支）等情况不算"真正打中人"，不播分级命中音，
+            //   避免与 ShieldHit/Parry/ShieldBreak 叠加
+            FighterController hitTarget = hurtbox.owner;
+            bool hitConfirmed = !hitTarget.isInvincible
+                             && !hitTarget.debugInvincible
+                             && hitTarget.StateMachine.CurrentState != FighterState.Dead
+                             && !hitTarget.isShielding;
+
             // 1. 对目标斗士应用伤害（统一伤害流程入口）
             hurtbox.owner.ApplyDamage(attackData, owner);
+
+            // 1.5 【M8-D2】分级命中音：>=16 重击 / >=9 中击 / 其余轻击；attackData 缺失时不播
+            if (hitConfirmed && attackData != null)
+                AudioManager.Sfx(SelectHitSfx(attackData.damage), HitSfxVolume);
 
             // 2. 打击感：震屏（重击震得厉害 —— 强度/时长后续可挂到 AttackData）
             Camera cam = Camera.main;
@@ -149,6 +170,14 @@ namespace SuperSmashLike.Combat
 
             // 统一走 ApplyTimeScale：尊重 Paused / 外部冻结（训练菜单），不再直写 BaseTimeScale
             GameManager.Instance.ApplyTimeScale();
+        }
+
+        // 【做什么】按伤害值选分级命中音（【M8-D2】）：>=16 重击 / >=9 中击 / 其余轻击
+        private static SfxId SelectHitSfx(float damage)
+        {
+            if (damage >= 16f) return SfxId.HitHeavy;
+            if (damage >= 9f) return SfxId.HitMedium;
+            return SfxId.HitLight;
         }
 
         #endregion
